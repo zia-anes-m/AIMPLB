@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { UserProfile, UserRole } from '@/types';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { getProfiles } from '@/services/api';
+import { safeStorage } from '@/lib/safeStorage';
 
 interface AuthContextType {
   currentUser: UserProfile | null;
@@ -43,13 +44,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         // Fallback to local session
-        const saved = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
+        const saved = safeStorage.getItem(CURRENT_USER_STORAGE_KEY);
         if (saved) {
           const user = JSON.parse(saved) as UserProfile;
           if (user.is_active) {
             setCurrentUser(user);
           } else {
-            localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+            safeStorage.removeItem(CURRENT_USER_STORAGE_KEY);
           }
         }
       } catch (err) {
@@ -100,7 +101,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             const userProfile = profile as UserProfile;
             setCurrentUser(userProfile);
-            localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(userProfile));
+            safeStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(userProfile));
             setIsLoading(false);
             return { success: true, user: userProfile };
           }
@@ -133,7 +134,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // In demo mode or if default credentials used
         setCurrentUser(matched);
-        localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(matched));
+        safeStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(matched));
         setIsLoading(false);
         return { success: true, user: matched };
       } catch (err: any) {
@@ -153,7 +154,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('Sign out error:', err);
     } finally {
       setCurrentUser(null);
-      localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+      safeStorage.removeItem(CURRENT_USER_STORAGE_KEY);
     }
   }, []);
 
@@ -163,7 +164,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const targetProfile = allProfiles.find((p) => p.role === targetRole);
     if (targetProfile && targetProfile.is_active) {
       setCurrentUser(targetProfile);
-      localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(targetProfile));
+      safeStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(targetProfile));
     }
   }, []);
 
@@ -174,7 +175,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const userRole = role || currentUser?.role;
     switch (userRole) {
       case 'Admin':
-        return '/admin/dashboard';
+        return '/invitees'; // Centralized Invitees page opens first when Admin logs in
       case 'Transportation Team':
         return '/transportation/dashboard';
       case 'Accommodation Team':

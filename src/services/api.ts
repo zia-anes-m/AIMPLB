@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { safeStorage } from '@/lib/safeStorage';
 import {
   Invitee,
   TransportationRecord,
@@ -39,9 +40,9 @@ const STORAGE_KEYS = {
 // Local store helpers with lazy initialization
 function getLocalItem<T>(key: string, defaultData: T): T {
   try {
-    const saved = localStorage.getItem(key);
+    const saved = safeStorage.getItem(key);
     if (!saved) {
-      localStorage.setItem(key, JSON.stringify(defaultData));
+      safeStorage.setItem(key, JSON.stringify(defaultData));
       return defaultData;
     }
     return JSON.parse(saved);
@@ -62,7 +63,7 @@ function notifyDbUpdate(): void {
 
 function setLocalItem<T>(key: string, data: T): void {
   try {
-    localStorage.setItem(key, JSON.stringify(data));
+    safeStorage.setItem(key, JSON.stringify(data));
     // Trigger debounced event so reactive components update smoothly without flood
     notifyDbUpdate();
   } catch (err) {

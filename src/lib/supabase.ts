@@ -16,8 +16,8 @@ const effectiveKey = isSupabaseConfigured ? supabaseAnonKey : 'placeholder-anon-
 
 export const supabase = createClient(effectiveUrl, effectiveKey, {
   auth: {
-    persistSession: true,
-    autoRefreshToken: true,
+    persistSession: isSupabaseConfigured,
+    autoRefreshToken: isSupabaseConfigured,
+    detectSessionInUrl: isSupabaseConfigured,
   },
 });
-

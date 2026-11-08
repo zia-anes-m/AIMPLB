@@ -4,13 +4,13 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { ProtectedRoute } from '@/routes/ProtectedRoute';
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
 
-// Public Pages
-const LandingPage = lazy(() => import('@/pages/LandingPage').then((m) => ({ default: m.LandingPage })));
-const LoginPage = lazy(() => import('@/pages/LoginPage').then((m) => ({ default: m.LoginPage })));
-const UnauthorizedPage = lazy(() => import('@/pages/UnauthorizedPage').then((m) => ({ default: m.UnauthorizedPage })));
-const NotFoundPage = lazy(() => import('@/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
+// Statically imported critical public entry pages to ensure instant, reliable loading on mobile devices
+import { LandingPage } from '@/pages/LandingPage';
+import { LoginPage } from '@/pages/LoginPage';
+import { UnauthorizedPage } from '@/pages/UnauthorizedPage';
+import { NotFoundPage } from '@/pages/NotFoundPage';
 
-// Department Modules
+// Lazily loaded department modules
 const InviteeListPage = lazy(() => import('@/pages/invitees/InviteeListPage').then((m) => ({ default: m.InviteeListPage })));
 const InviteeDetailPage = lazy(() => import('@/pages/invitees/InviteeDetailPage').then((m) => ({ default: m.InviteeDetailPage })));
 const TransportationDashboard = lazy(() => import('@/pages/transportation/TransportationDashboard').then((m) => ({ default: m.TransportationDashboard })));

@@ -83,7 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="p-3.5 border-b border-[#F4F6F4] flex items-center justify-between gap-3 h-16 shrink-0">
         <div className="flex items-center gap-2.5 overflow-hidden">
           <img
-            src="/logo.png"
+            src="/new_logo.png"
             alt="AIMPLB Logo"
             className="h-9 w-9 object-contain rounded-md shrink-0"
             onError={(e) => {

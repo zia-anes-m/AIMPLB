@@ -83,7 +83,7 @@ export const LoginPage: React.FC = () => {
       {/* Branding Header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <img
-          src="/logo.png"
+          src="/new_logo.png"
           alt="AIMPLB Logo"
           className="mx-auto h-16 sm:h-20 w-auto object-contain mb-3.5 drop-shadow-xs"
         />

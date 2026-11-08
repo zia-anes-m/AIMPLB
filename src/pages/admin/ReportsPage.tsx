@@ -325,7 +325,7 @@ export const ReportsPage: React.FC = () => {
           <div className="border-b-2 border-[#164734] pb-4 mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div>
               <div className="flex items-center gap-3 mb-1.5">
-                <img src="/logo.png" alt="AIMPLB Logo" className="h-10 w-10 object-contain shrink-0" />
+                <img src="/new_logo.png" alt="AIMPLB Logo" className="h-10 w-10 object-contain shrink-0" />
                 <div>
                   <h2 className="text-xs font-bold tracking-widest uppercase text-[#164734]">
                     All India Muslim Personal Law Board

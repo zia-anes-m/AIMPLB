@@ -23,7 +23,7 @@ export const LandingPage: React.FC = () => {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-18 sm:h-20 flex items-center justify-between">
           <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
             <img
-              src="/logo.png"
+              src="/new_logo.png"
               alt="AIMPLB Official Emblem"
               className="h-12 sm:h-14 w-auto object-contain shrink-0"
             />

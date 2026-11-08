@@ -17,6 +17,7 @@ export interface ToastMethods {
   warning: (title: string, message?: string) => void;
   info: (title: string, message?: string) => void;
   show: (title: string, type?: ToastType, message?: string) => void;
+  toast: ToastMethods;
 }
 
 interface ToastContextType {
@@ -41,17 +42,18 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const toastMethods: ToastMethods = useMemo(
-    () => ({
+  const toastMethods = useMemo(() => {
+    const methods: any = {
       success: (title: string, message?: string) => addToast('success', title, message),
       error: (title: string, message?: string) => addToast('error', title, message),
       warning: (title: string, message?: string) => addToast('warning', title, message),
       info: (title: string, message?: string) => addToast('info', title, message),
       show: (title: string, type: ToastType = 'info', message?: string) =>
         addToast(type, title, message),
-    }),
-    [addToast]
-  );
+    };
+    methods.toast = methods;
+    return methods as ToastMethods;
+  }, [addToast]);
 
   const contextValue = useMemo(() => ({ toast: toastMethods }), [toastMethods]);
 
@@ -112,8 +114,5 @@ export const useToast = () => {
   if (!context) {
     throw new Error('useToast must be used within a ToastProvider');
   }
-  return {
-    ...context.toast,
-    toast: context.toast,
-  };
+  return context.toast;
 };

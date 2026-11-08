@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/context/AuthContext';
 import { ToastProvider } from '@/context/ToastContext';
 import { AppRoutes } from '@/routes/AppRoutes';
+import { PWAInstallPrompt } from '@/components/common/PWAInstallPrompt';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,6 +22,7 @@ export const App: React.FC = () => {
         <AuthProvider>
           <ToastProvider>
             <AppRoutes />
+            <PWAInstallPrompt />
           </ToastProvider>
         </AuthProvider>
       </BrowserRouter>

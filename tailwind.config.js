@@ -67,6 +67,13 @@ export default {
           'Roboto',
           'sans-serif',
         ],
+        urdu: [
+          '"Noto Nastaliq Urdu"',
+          '"Jameel Noori Nastaleeq"',
+          '"Urdu Typesetting"',
+          '"Amiri"',
+          'serif',
+        ],
       },
       boxShadow: {
         'card-subtle': '0 1px 2px 0 rgba(16, 24, 20, 0.03), 0 1px 3px 1px rgba(16, 24, 20, 0.02)',

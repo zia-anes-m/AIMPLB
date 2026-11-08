@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, MapPin, Building, ShieldCheck, ArrowRight, Lock, CheckCircle2 } from 'lucide-react';
+import { Calendar, MapPin, ShieldCheck, ArrowRight, Lock, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 
@@ -28,9 +28,9 @@ export const LandingPage: React.FC = () => {
               className="h-12 sm:h-14 w-auto object-contain shrink-0"
             />
             <div className="border-l border-[#E3E7E4] pl-3 sm:pl-4 overflow-hidden">
-              <h1 className="text-xs sm:text-sm font-extrabold tracking-widest text-[#164734] uppercase font-sans truncate">
+              <span className="block text-xs sm:text-sm font-extrabold tracking-widest text-[#164734] uppercase font-sans truncate">
                 All India Muslim Personal Law Board
-              </h1>
+              </span>
               <p className="text-[10px] sm:text-[11px] text-[#69756F] tracking-wider font-semibold truncate">
                 30th Annual Session • Central Secretariat
               </p>
@@ -51,27 +51,53 @@ export const LandingPage: React.FC = () => {
       </header>
 
       {/* Hero Section */}
-      <main className="flex-1 max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-20 flex flex-col items-center text-center">
+      <main className="flex-1 max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-16 flex flex-col items-center text-center">
         {/* Subtle Institutional Tag */}
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#E8F1EC] border border-[#C5DEC8] text-[#164734] text-xs font-semibold uppercase tracking-wider mb-6 sm:mb-8 shadow-xs">
           <ShieldCheck className="h-3.5 w-3.5" />
           <span>Official Event Operations Platform</span>
         </div>
 
-        {/* Main Session Title */}
-        <h2 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-[#164734] tracking-tight leading-tight">
-          30th Annual Session
-        </h2>
+        {/* Primary H1: Organization Name in both Urdu and English */}
+        <h1 className="flex flex-col items-center text-center gap-2.5 sm:gap-4 max-w-4xl mx-auto">
+          {/* Urdu Title with Proper RTL and Calligraphic Font */}
+          <span
+            dir="rtl"
+            lang="ur"
+            className="font-urdu text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-[#164734] leading-[1.8] sm:leading-[1.9] tracking-normal select-none"
+          >
+            آل انڈیا مسلم پرسنل لا بورڈ
+          </span>
 
-        {/* Date and Venue Badge */}
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-sm sm:text-base font-semibold text-[#1A221E]">
-          <span className="font-bold">14</span>
-          <span className="text-[#AAB3AE]">•</span>
-          <span className="font-bold">15</span>
-          <span className="text-[#AAB3AE]">•</span>
-          <span className="font-bold">16 December 2026</span>
-          <span className="text-[#E3E7E4] hidden sm:inline">|</span>
-          <span className="text-[#164734] font-bold">Hajj House, Chennai</span>
+          {/* English Title */}
+          <span className="text-xl xs:text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#164734] tracking-tight uppercase leading-tight sm:leading-snug">
+            All India Muslim Personal Law Board
+          </span>
+        </h1>
+
+        {/* Subtitle / Secondary Heading (H2): 30th Annual Session */}
+        <div className="mt-4 sm:mt-5 flex items-center justify-center gap-3">
+          <span className="h-px w-6 sm:w-12 bg-gradient-to-r from-transparent to-[#164734]/30" />
+          <h2 className="text-lg xs:text-xl sm:text-2xl md:text-3xl font-extrabold text-[#1A221E] tracking-tight flex items-center gap-2">
+            <span className="text-[#164734]">30th</span>
+            <span>Annual Session</span>
+          </h2>
+          <span className="h-px w-6 sm:w-12 bg-gradient-to-l from-transparent to-[#164734]/30" />
+        </div>
+
+        {/* Event Date and Venue as Clean, Readable Text */}
+        <div className="mt-4 sm:mt-5 flex flex-wrap items-center justify-center gap-y-2 gap-x-3 sm:gap-x-6 text-xs sm:text-sm md:text-base font-semibold text-[#2C3832]">
+          <div className="inline-flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-[#164734] shrink-0" />
+            <span>14, 15 and 16 December 2026</span>
+          </div>
+
+          <span className="hidden sm:inline text-[#C5DEC8] font-bold text-base">•</span>
+
+          <div className="inline-flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-[#164734] shrink-0" />
+            <span>Hajj House, Chennai, Tamil Nadu, India</span>
+          </div>
         </div>
 
         {/* Supporting Portal Description */}
@@ -79,14 +105,14 @@ export const LandingPage: React.FC = () => {
           <p className="text-base sm:text-lg font-bold text-[#1A221E]">
             Event Coordination and Volunteer Management Portal
           </p>
-          <p className="mt-2 text-xs sm:text-base text-[#69756F] leading-relaxed max-w-xl mx-auto">
+          <p className="mt-2 text-xs sm:text-sm md:text-base text-[#69756F] leading-relaxed max-w-xl mx-auto">
             A centralized platform for coordinating invitee transportation, accommodation, food arrangements,
             and event operations.
           </p>
         </div>
 
         {/* Action Button */}
-        <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+        <div className="mt-7 sm:mt-9 flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
           <Button
             size="lg"
             onClick={handleAction}
@@ -97,38 +123,8 @@ export const LandingPage: React.FC = () => {
           </Button>
         </div>
 
-        {/* Three Verified Event Details Cards */}
-        <div className="mt-12 sm:mt-16 w-full grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4 text-left">
-          <div className="p-5 rounded-2xl border border-[#E3E7E4] bg-white shadow-card-subtle hover:shadow-card-hover transition-all duration-200">
-            <div className="p-2.5 rounded-xl bg-[#F2F7F4] text-[#164734] w-fit mb-3 border border-[#C5DEC8]/50">
-              <Calendar className="h-5 w-5" />
-            </div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#69756F]">Session Dates</p>
-            <p className="text-base font-bold text-[#1A221E] mt-1">14–16 December 2026</p>
-            <p className="text-xs text-[#69756F] mt-0.5">Monday to Wednesday</p>
-          </div>
-
-          <div className="p-5 rounded-2xl border border-[#E3E7E4] bg-white shadow-card-subtle hover:shadow-card-hover transition-all duration-200">
-            <div className="p-2.5 rounded-xl bg-[#F2F7F4] text-[#164734] w-fit mb-3 border border-[#C5DEC8]/50">
-              <MapPin className="h-5 w-5" />
-            </div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#69756F]">Official Venue</p>
-            <p className="text-base font-bold text-[#1A221E] mt-1">Hajj House, Chennai</p>
-            <p className="text-xs text-[#69756F] mt-0.5">Tamil Nadu, India</p>
-          </div>
-
-          <div className="p-5 rounded-2xl border border-[#E3E7E4] bg-white shadow-card-subtle hover:shadow-card-hover transition-all duration-200">
-            <div className="p-2.5 rounded-xl bg-[#F2F7F4] text-[#164734] w-fit mb-3 border border-[#C5DEC8]/50">
-              <Building className="h-5 w-5" />
-            </div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#69756F]">Organization</p>
-            <p className="text-base font-bold text-[#1A221E] mt-1">AIMPLB</p>
-            <p className="text-xs text-[#69756F] mt-0.5">All India Muslim Personal Law Board</p>
-          </div>
-        </div>
-
         {/* Operational Highlights Pill */}
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-xs text-[#69756F]">
+        <div className="mt-10 sm:mt-12 flex flex-wrap items-center justify-center gap-3 text-xs text-[#69756F]">
           <span className="flex items-center gap-1.5">
             <CheckCircle2 className="h-3.5 w-3.5 text-[#164734]" /> Real-time Logistics
           </span>

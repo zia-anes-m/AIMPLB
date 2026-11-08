@@ -59,18 +59,18 @@ export const LandingPage: React.FC = () => {
         </div>
 
         {/* Primary H1: Organization Name in both Urdu and English */}
-        <h1 className="flex flex-col items-center text-center gap-2.5 sm:gap-4 max-w-4xl mx-auto">
+        <h1 className="w-full max-w-4xl mx-auto text-center">
           {/* Urdu Title with Proper RTL and Calligraphic Font */}
           <span
             dir="rtl"
             lang="ur"
-            className="font-urdu text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-[#164734] leading-[1.8] sm:leading-[1.9] tracking-normal select-none"
+            className="block font-urdu text-2xl xs:text-3xl sm:text-4xl md:text-5xl font-bold text-[#164734] leading-[2.2] sm:leading-[2.4] pb-2 sm:pb-3 mb-5 sm:mb-7 select-none"
           >
             آل انڈیا مسلم پرسنل لا بورڈ
           </span>
 
           {/* English Title */}
-          <span className="text-xl xs:text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#164734] tracking-tight uppercase leading-tight sm:leading-snug">
+          <span className="block text-xl xs:text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#164734] tracking-tight uppercase leading-tight sm:leading-snug">
             All India Muslim Personal Law Board
           </span>
         </h1>

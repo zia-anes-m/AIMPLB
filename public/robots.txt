@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Allow: /login
+Disallow: /admin/
+Disallow: /invitees/
+Disallow: /transportation/
+Disallow: /accommodation/
+Disallow: /food/
+Disallow: /reception/
+Disallow: /meeting-hall/
+
+Sitemap: https://aimplb.vercel.app/sitemap.xml
+

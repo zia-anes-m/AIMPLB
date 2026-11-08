@@ -8,7 +8,7 @@ export default {
         aimplb: {
           50: '#F2F7F4',
           100: '#E2EFE7',
-          200: '#C5DECة',
+          200: '#C5DEC8',
           300: '#9ECAA0',
           400: '#6FA974',
           500: '#3F8448',

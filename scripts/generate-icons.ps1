@@ -62,3 +62,4 @@ $icon.Save($fileStream)
 $fileStream.Close()
 $bmp32.Dispose()
 Write-Output "Generated favicon.ico"
+

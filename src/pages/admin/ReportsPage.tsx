@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/common/PageHeader';
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
+import { Logo } from '@/components/common/Logo';
 import {
   getInvitees,
   getTransportationRecords,
@@ -361,14 +362,10 @@ export const ReportsPage: React.FC = () => {
           <div className="border-b-2 border-[#164734] pb-4 mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div>
               <div className="flex items-center gap-3 mb-1.5">
-                <img
-                  src="/new_logo.png"
-                  alt="AIMPLB Logo"
+                <Logo
+                  size="md"
                   className="h-10 w-10 object-contain shrink-0"
-                  onError={(e) => {
-                    // Fallback to logo.png
-                    (e.target as HTMLImageElement).src = '/logo.png';
-                  }}
+                  alt="AIMPLB Logo"
                 />
                 <div>
                   <h2 className="text-xs font-bold tracking-widest uppercase text-[#164734]">

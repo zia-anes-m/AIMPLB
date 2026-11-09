@@ -1,9 +1,10 @@
-const CACHE_NAME = 'aimplb-pwa-v1';
+const CACHE_NAME = 'aimplb-pwa-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
-  '/new_logo.png',
+  '/AIMPLB_logo.png',
+  '/logo.png',
   '/icon-192.png',
   '/icon-512.png',
   '/favicon.ico',

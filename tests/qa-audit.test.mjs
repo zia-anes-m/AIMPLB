@@ -68,7 +68,7 @@ test('2. PWA Manifest, Service Worker & Web App Icons', () => {
     'icon-192.png',
     'icon-512.png',
     'maskable-icon-512.png',
-    'new_logo.png',
+    'AIMPLB_logo.png',
     'logo.png',
   ];
   for (const icon of requiredIcons) {

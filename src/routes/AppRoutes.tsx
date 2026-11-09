@@ -2,7 +2,7 @@ import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ProtectedRoute } from '@/routes/ProtectedRoute';
-import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
+import { Logo } from '@/components/common/Logo';
 
 // Statically imported critical public entry pages to ensure instant, reliable loading on mobile devices
 import { LandingPage } from '@/pages/LandingPage';
@@ -30,10 +30,12 @@ export const AppRoutes: React.FC = () => {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-[#FAF9F5]">
-          <div className="w-full max-w-xl p-6">
-            <LoadingSkeleton rows={4} />
-          </div>
+        <div className="min-h-screen flex flex-col items-center justify-center bg-[#FAF9F5] p-6 text-center select-none">
+          <Logo size="lg" className="h-14 w-14 mb-3 animate-pulse" />
+          <p className="text-xs font-bold uppercase tracking-wider text-[#164734]">
+            All India Muslim Personal Law Board
+          </p>
+          <p className="text-[11px] text-[#69756F] mt-0.5">30th Annual Session • Loading Portal...</p>
         </div>
       }
     >

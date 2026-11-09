@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar, MapPin, ShieldCheck, ArrowRight, Lock, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
+import { Logo } from '@/components/common/Logo';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -22,10 +23,10 @@ export const LandingPage: React.FC = () => {
       <header className="border-b border-[#E3E7E4] bg-white/95 backdrop-blur-md sticky top-0 z-30 shadow-card-subtle">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-18 sm:h-20 flex items-center justify-between">
           <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
-            <img
-              src="/new_logo.png"
-              alt="AIMPLB Official Emblem"
+            <Logo
+              size="lg"
               className="h-12 sm:h-14 w-auto object-contain shrink-0"
+              alt="AIMPLB Official Emblem"
             />
             <div className="border-l border-[#E3E7E4] pl-3 sm:pl-4 overflow-hidden">
               <span className="block text-xs sm:text-sm font-extrabold tracking-widest text-[#164734] uppercase font-sans truncate">

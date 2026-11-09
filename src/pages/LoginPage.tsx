@@ -18,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/AuthContext';
+import { Logo } from '@/components/common/Logo';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -82,10 +83,10 @@ export const LoginPage: React.FC = () => {
     <div className="min-h-screen bg-[#FAF9F6] flex flex-col justify-center py-8 sm:py-16 px-4 sm:px-6 lg:px-8 selection:bg-[#E8F1EC] selection:text-[#164734]">
       {/* Branding Header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <img
-          src="/new_logo.png"
-          alt="AIMPLB Logo"
+        <Logo
+          size="xl"
           className="mx-auto h-16 sm:h-20 w-auto object-contain mb-3.5 drop-shadow-xs"
+          alt="AIMPLB Logo"
         />
         <h1 className="text-lg sm:text-xl font-extrabold tracking-tight text-[#164734] uppercase">
           All India Muslim Personal Law Board

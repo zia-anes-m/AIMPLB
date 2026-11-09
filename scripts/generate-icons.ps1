@@ -1,11 +1,17 @@
 Add-Type -AssemblyName System.Drawing
 
-$srcPath = Join-Path (Get-Location) "new_logo.png"
+$srcPath = Join-Path (Get-Location) "AIMPLB_logo.png"
 $publicDir = Join-Path (Get-Location) "public"
 
 if (!(Test-Path $publicDir)) {
     New-Item -ItemType Directory -Path $publicDir -Force
 }
+
+# Copy direct high-res master logo files to public
+Copy-Item -Path $srcPath -Destination (Join-Path $publicDir "AIMPLB_logo.png") -Force
+Copy-Item -Path $srcPath -Destination (Join-Path $publicDir "logo.png") -Force
+Copy-Item -Path $srcPath -Destination (Join-Path $publicDir "new_logo.png") -Force
+Write-Output "Copied AIMPLB_logo.png to public master assets."
 
 function Resize-Image($sourcePath, $destPath, $targetWidth, $targetHeight, $padRatio = 0.0, $bgColor = $null) {
     $srcImage = [System.Drawing.Image]::FromFile($sourcePath)
@@ -61,5 +67,4 @@ $fileStream = [System.IO.File]::OpenWrite((Join-Path $publicDir "favicon.ico"))
 $icon.Save($fileStream)
 $fileStream.Close()
 $bmp32.Dispose()
-Write-Output "Generated favicon.ico"
-
+Write-Output "Generated favicon.ico from AIMPLB_logo.png"

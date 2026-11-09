@@ -21,6 +21,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils';
 import { UserRole } from '@/types';
+import { Logo } from '@/components/common/Logo';
 
 interface SidebarProps {
   isCollapsed?: boolean;
@@ -82,13 +83,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Brand & Event Header */}
       <div className="p-3.5 border-b border-[#F4F6F4] flex items-center justify-between gap-3 h-16 shrink-0">
         <div className="flex items-center gap-2.5 overflow-hidden">
-          <img
-            src="/new_logo.png"
-            alt="AIMPLB Logo"
+          <Logo
+            size="sm"
             className="h-9 w-9 object-contain rounded-md shrink-0"
-            onError={(e) => {
-              (e.target as HTMLElement).style.display = 'none';
-            }}
+            alt="AIMPLB Logo"
           />
           {(!isCollapsed || isMobile) && (
             <div className="overflow-hidden min-w-0">

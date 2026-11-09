@@ -2,6 +2,7 @@ import React from 'react';
 import { Menu, MapPin, Calendar, Database, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { isSupabaseConfigured } from '@/lib/supabase';
+import { Logo } from '@/components/common/Logo';
 
 interface TopbarProps {
   onToggleMobileMenu: () => void;
@@ -57,8 +58,9 @@ export const Topbar: React.FC<TopbarProps> = ({
           </span>
         </div>
 
-        {/* Mobile Brand Title */}
+        {/* Mobile Brand Title with Official Logo */}
         <div className="md:hidden flex items-center gap-2 overflow-hidden">
+          <Logo size="xs" className="h-7 w-7" />
           <span className="text-xs font-bold uppercase tracking-wider text-[#164734] truncate">
             AIMPLB 30th Session
           </span>

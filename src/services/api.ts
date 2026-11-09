@@ -98,7 +98,27 @@ function recordLocalAudit(
 // -------------------------------------------------------------
 // INVITEES SERVICE
 // -------------------------------------------------------------
-export async function getInvitees(): Promise<Invitee[]> {
+function getCurrentSessionUserRole(): string | null {
+  try {
+    const raw = safeStorage.getItem('aimplb_current_user_session');
+    if (!raw) return null;
+    const user = JSON.parse(raw);
+    return user?.role || null;
+  } catch {
+    return null;
+  }
+}
+
+function redactInviteeForNonAdmin(invitee: Invitee): Invitee {
+  return {
+    ...invitee,
+    city: '[Restricted]',
+    state: '[Restricted]',
+    address: '[Restricted]',
+  };
+}
+
+export async function getRawInvitees(): Promise<Invitee[]> {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase
       .from('invitees')
@@ -110,9 +130,24 @@ export async function getInvitees(): Promise<Invitee[]> {
   return getLocalItem<Invitee[]>(STORAGE_KEYS.INVITEES, INITIAL_INVITEES);
 }
 
+export async function getInvitees(): Promise<Invitee[]> {
+  const rawList = await getRawInvitees();
+  const role = getCurrentSessionUserRole();
+  if (role === 'Admin') {
+    return rawList;
+  }
+  return rawList.map(redactInviteeForNonAdmin);
+}
+
 export async function getInviteeById(id: string): Promise<Invitee | null> {
-  const list = await getInvitees();
-  return list.find((i) => i.id === id) || null;
+  const rawList = await getRawInvitees();
+  const found = rawList.find((i) => i.id === id) || null;
+  if (!found) return null;
+  const role = getCurrentSessionUserRole();
+  if (role === 'Admin') {
+    return found;
+  }
+  return redactInviteeForNonAdmin(found);
 }
 
 export async function checkDuplicateInvitee(
@@ -120,7 +155,7 @@ export async function checkDuplicateInvitee(
   fullName: string,
   excludeId?: string
 ): Promise<{ isDuplicate: boolean; matchedBy: 'phone' | 'name' | null; existing?: Invitee }> {
-  const list = await getInvitees();
+  const list = await getRawInvitees();
   const cleanPhone = phone.replace(/\D/g, '');
   const cleanName = fullName.trim().toLowerCase();
 

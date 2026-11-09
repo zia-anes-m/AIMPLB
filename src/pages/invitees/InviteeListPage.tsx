@@ -112,31 +112,53 @@ export const InviteeListPage: React.FC = () => {
       return;
     }
 
-    const headers = [
-      'Invitee Code',
-      'Full Name',
-      'Category',
-      'Phone Number',
-      'Alternate Phone',
-      'City',
-      'State',
-      'Address',
-      'Remarks',
-      'Registered Date',
-    ];
+    const headers = isAdmin
+      ? [
+          'Invitee Code',
+          'Full Name',
+          'Category',
+          'Phone Number',
+          'Alternate Phone',
+          'City',
+          'State',
+          'Address',
+          'Remarks',
+          'Registered Date',
+        ]
+      : [
+          'Invitee Code',
+          'Full Name',
+          'Category',
+          'Phone Number',
+          'Alternate Phone',
+          'Remarks',
+          'Registered Date',
+        ];
 
-    const rows = filteredInvitees.map((i) => [
-      i.invitee_code,
-      i.full_name,
-      i.category,
-      i.phone,
-      i.alternate_phone || '',
-      i.city,
-      i.state,
-      i.address || '',
-      i.remarks || '',
-      formatDate(i.created_at),
-    ]);
+    const rows = filteredInvitees.map((i) =>
+      isAdmin
+        ? [
+            i.invitee_code,
+            i.full_name,
+            i.category,
+            i.phone,
+            i.alternate_phone || '',
+            i.city,
+            i.state,
+            i.address || '',
+            i.remarks || '',
+            formatDate(i.created_at),
+          ]
+        : [
+            i.invitee_code,
+            i.full_name,
+            i.category,
+            i.phone,
+            i.alternate_phone || '',
+            i.remarks || '',
+            formatDate(i.created_at),
+          ]
+    );
 
     exportToCSV('AIMPLB_30th_Session_Invitees', headers, rows);
     toast.show(`Exported ${filteredInvitees.length} delegates to CSV.`, 'success');
@@ -290,7 +312,7 @@ export const InviteeListPage: React.FC = () => {
                 key={inv.id}
                 title={inv.full_name}
                 identifier={inv.invitee_code}
-                subtitle={`${inv.city}, ${inv.state}`}
+                subtitle={isAdmin ? `${inv.city}, ${inv.state}` : inv.category}
                 badge={
                   <StatusBadge
                     variant={getCategoryStatusVariant(inv.category)}
@@ -313,15 +335,19 @@ export const InviteeListPage: React.FC = () => {
                       </a>
                     ),
                   },
-                  {
-                    label: 'Location',
-                    value: (
-                      <span className="flex items-center gap-1 text-[#4A5550]">
-                        <MapPin className="h-3 w-3 text-[#69756F] shrink-0" />
-                        <span className="truncate">{inv.city}, {inv.state}</span>
-                      </span>
-                    ),
-                  },
+                  ...(isAdmin
+                    ? [
+                        {
+                          label: 'Location',
+                          value: (
+                            <span className="flex items-center gap-1 text-[#4A5550]">
+                              <MapPin className="h-3 w-3 text-[#69756F] shrink-0" />
+                              <span className="truncate">{inv.city}, {inv.state}</span>
+                            </span>
+                          ),
+                        },
+                      ]
+                    : []),
                 ]}
                 expandableFields={[
                   ...(inv.alternate_phone
@@ -332,7 +358,7 @@ export const InviteeListPage: React.FC = () => {
                         },
                       ]
                     : []),
-                  ...(inv.address
+                  ...(isAdmin && inv.address
                     ? [
                         {
                           label: 'Address',
@@ -413,7 +439,7 @@ export const InviteeListPage: React.FC = () => {
                     <th className="py-3 px-4">Full Name</th>
                     <th className="py-3 px-4">Category</th>
                     <th className="py-3 px-4">Contact</th>
-                    <th className="py-3 px-4">Location</th>
+                    {isAdmin && <th className="py-3 px-4">Location</th>}
                     <th className="py-3 px-4">Remarks</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
@@ -434,7 +460,7 @@ export const InviteeListPage: React.FC = () => {
                         <div className="font-semibold text-sm group-hover:text-[#164734] transition-colors">
                           {inv.full_name}
                         </div>
-                        {inv.address && (
+                        {isAdmin && inv.address && (
                           <div className="text-[11px] text-[#69756F] truncate max-w-xs mt-0.5">
                             {inv.address}
                           </div>
@@ -462,14 +488,16 @@ export const InviteeListPage: React.FC = () => {
                           </div>
                         )}
                       </td>
-                      <td className="py-3.5 px-4 text-[#4A5550]">
-                        <div className="flex items-center gap-1.5">
-                          <MapPin className="h-3 w-3 text-[#69756F] shrink-0" />
-                          <span className="truncate max-w-[150px]">
-                            {inv.city}, {inv.state}
-                          </span>
-                        </div>
-                      </td>
+                      {isAdmin && (
+                        <td className="py-3.5 px-4 text-[#4A5550]">
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="h-3 w-3 text-[#69756F] shrink-0" />
+                            <span className="truncate max-w-[150px]">
+                              {inv.city}, {inv.state}
+                            </span>
+                          </div>
+                        </td>
+                      )}
                       <td className="py-3.5 px-4 text-[#69756F] max-w-[180px] truncate">
                         {inv.remarks || '—'}
                       </td>

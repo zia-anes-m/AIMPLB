@@ -131,20 +131,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        {/* Dashboard link */}
-        <NavLink
-          to={getDashboardRoute()}
-          className={navLinkClass}
-          onClick={onCloseMobile}
-          title={isCollapsed ? (isAdmin ? 'Executive Dashboard' : 'My Dashboard') : undefined}
-        >
-          <LayoutDashboard className="h-4 w-4 shrink-0" />
-          {(!isCollapsed || isMobile) && (
-            <span className="truncate">{isAdmin ? 'Executive Dashboard' : 'My Dashboard'}</span>
-          )}
-        </NavLink>
-
-        {/* Centralized Invitees Database */}
+        {/* 1. Centralized Invitees Database */}
         <NavLink
           to="/invitees"
           className={navLinkClass}
@@ -154,6 +141,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <Users className="h-4 w-4 shrink-0" />
           {(!isCollapsed || isMobile) && (
             <span className="truncate">Centralized Invitees</span>
+          )}
+        </NavLink>
+
+        {/* 2. Executive Dashboard / Department Dashboard */}
+        <NavLink
+          to={isAdmin ? '/admin/dashboard' : getDashboardRoute()}
+          className={navLinkClass}
+          onClick={onCloseMobile}
+          title={isCollapsed ? (isAdmin ? 'Executive Dashboard' : 'My Dashboard') : undefined}
+        >
+          <LayoutDashboard className="h-4 w-4 shrink-0" />
+          {(!isCollapsed || isMobile) && (
+            <span className="truncate">{isAdmin ? 'Executive Dashboard' : 'My Dashboard'}</span>
           )}
         </NavLink>
 

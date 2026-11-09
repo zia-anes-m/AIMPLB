@@ -7,7 +7,7 @@ if (!(Test-Path $publicDir)) {
     New-Item -ItemType Directory -Path $publicDir -Force
 }
 
-# Copy direct high-res master logo files to public
+# Copy direct master logo file to public
 Copy-Item -Path $srcPath -Destination (Join-Path $publicDir "AIMPLB_logo.png") -Force
 Copy-Item -Path $srcPath -Destination (Join-Path $publicDir "logo.png") -Force
 Copy-Item -Path $srcPath -Destination (Join-Path $publicDir "new_logo.png") -Force
@@ -44,22 +44,27 @@ function Resize-Image($sourcePath, $destPath, $targetWidth, $targetHeight, $padR
 
     $destBitmap.Save($destPath, [System.Drawing.Imaging.ImageFormat]::Png)
     $destBitmap.Dispose()
-    Write-Output "Generated $destPath ($targetWidth x $targetHeight)"
+    Write-Output "Generated $destPath ($targetWidth x $targetHeight, pad: $padRatio)"
 }
 
-# Generate PNG icons
-Resize-Image $srcPath (Join-Path $publicDir "icon-192.png") 192 192
-Resize-Image $srcPath (Join-Path $publicDir "icon-512.png") 512 512
-Resize-Image $srcPath (Join-Path $publicDir "apple-touch-icon.png") 180 180
-Resize-Image $srcPath (Join-Path $publicDir "apple-touch-icon-precomposed.png") 180 180
-Resize-Image $srcPath (Join-Path $publicDir "favicon-32x32.png") 32 32
-Resize-Image $srcPath (Join-Path $publicDir "favicon-16x16.png") 16 16
+$whiteBg = [System.Drawing.Color]::FromArgb(255, 255, 255, 255)
 
-# Generate maskable icon with 15% safe zone padding and institutional background
-$bg = [System.Drawing.Color]::FromArgb(255, 250, 249, 246) # #FAF9F6
-Resize-Image $srcPath (Join-Path $publicDir "maskable-icon-512.png") 512 512 0.20 $bg
+# Standard Android PWA Icons with 18% safe padding and crisp white background so circular masks don't clip
+Resize-Image $srcPath (Join-Path $publicDir "icon-192.png") 192 192 0.18 $whiteBg
+Resize-Image $srcPath (Join-Path $publicDir "icon-512.png") 512 512 0.18 $whiteBg
 
-# Also save favicon.ico
+# iOS Apple Touch Icon with 14% padding
+Resize-Image $srcPath (Join-Path $publicDir "apple-touch-icon.png") 180 180 0.14 $whiteBg
+Resize-Image $srcPath (Join-Path $publicDir "apple-touch-icon-precomposed.png") 180 180 0.14 $whiteBg
+
+# Android Adaptive Maskable Icon with 25% safe zone padding (strictly follows W3C PWA spec)
+Resize-Image $srcPath (Join-Path $publicDir "maskable-icon-512.png") 512 512 0.25 $whiteBg
+
+# Browser Favicons
+Resize-Image $srcPath (Join-Path $publicDir "favicon-32x32.png") 32 32 0.05 $null
+Resize-Image $srcPath (Join-Path $publicDir "favicon-16x16.png") 16 16 0.05 $null
+
+# Generate favicon.ico from 32x32
 $bmp32 = New-Object System.Drawing.Bitmap (Join-Path $publicDir "favicon-32x32.png")
 $iconHandle = $bmp32.GetHicon()
 $icon = [System.Drawing.Icon]::FromHandle($iconHandle)
@@ -67,4 +72,4 @@ $fileStream = [System.IO.File]::OpenWrite((Join-Path $publicDir "favicon.ico"))
 $icon.Save($fileStream)
 $fileStream.Close()
 $bmp32.Dispose()
-Write-Output "Generated favicon.ico from AIMPLB_logo.png"
+Write-Output "Generated favicon.ico with proper padding."

@@ -77,6 +77,11 @@ export interface AccommodationRecord {
   check_out_date?: string | null;
   check_out_time?: string | null;
   occupancy?: string | null;
+  hotel_registered?: boolean;
+  registration_status?: 'Not Registered' | 'Registered' | 'Pending' | 'Cancelled';
+  registered_at?: string | null;
+  registered_by?: string | null;
+  special_requirements?: string | null;
   remarks?: string | null;
   created_by?: string | null;
   updated_by?: string | null;
@@ -165,4 +170,90 @@ export interface SystemSettings {
   updated_by?: string | null;
   updated_at: string;
 }
+
+// --------------------------------------------------------------------
+// EVENT RECEPTION ATTENDANCE (Physical Event Gate IN / OUT)
+// --------------------------------------------------------------------
+export interface EventAttendanceRecord {
+  id: string;
+  invitee_id: string;
+  invitee?: Invitee;
+  event_date: string; // e.g. '2026-12-14'
+  entry_time: string; // ISO timestamp
+  exit_time?: string | null; // ISO timestamp when exited
+  entry_recorded_by: string;
+  exit_recorded_by?: string | null;
+  entry_recorded_by_name?: string | null;
+  exit_recorded_by_name?: string | null;
+  status: 'IN' | 'OUT' | 'Inside' | 'Completed';
+  entry_notes?: string | null;
+  exit_notes?: string | null;
+  duration_minutes?: number | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// --------------------------------------------------------------------
+// MEETING ROOMS & MEETING ATTENDANCE TRACKING
+// --------------------------------------------------------------------
+export interface MeetingRoom {
+  id: string;
+  name: string;
+  capacity?: number;
+  description?: string;
+  is_active: boolean;
+  room_order?: number;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface MeetingAttendanceRecord {
+  id: string;
+  invitee_id: string;
+  invitee?: Invitee;
+  room_id?: string;
+  room_name: string;
+  session_name?: string | null;
+  meeting_date: string; // e.g. '2026-12-14'
+  in_time?: string; // ISO timestamp
+  out_time?: string | null; // ISO timestamp
+  entry_time?: string; // backwards compatibility
+  exit_time?: string | null;
+  recorded_by: string;
+  recorded_by_name?: string | null;
+  exit_recorded_by?: string | null;
+  status: 'IN' | 'OUT' | 'Inside' | 'Completed';
+  notes?: string | null;
+  duration_minutes?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// --------------------------------------------------------------------
+// UNIFIED ACTIVITY HISTORY TIMELINE
+// --------------------------------------------------------------------
+export type ActivityType = 'transportation' | 'accommodation' | 'reception' | 'meeting';
+
+export interface UnifiedActivityEvent {
+  id: string;
+  invitee_id?: string;
+  type: ActivityType;
+  date?: string;
+  timestamp: string; // ISO for sorting
+  timeFormatted?: string;
+  title: string;
+  description: string;
+  location?: string;
+  status?: string;
+  badge_variant?: string;
+  source_id?: string;
+  statusBadge?: {
+    label: string;
+    variant: 'success' | 'warning' | 'info' | 'neutral' | 'danger';
+  };
+  recorded_by?: string;
+  duration?: string;
+}
+
 

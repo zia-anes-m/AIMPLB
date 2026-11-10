@@ -50,9 +50,20 @@ export function formatDateTime(dateTimeString: string | null | undefined): strin
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
+      timeZone: 'Asia/Kolkata',
     });
   } catch {
     return dateTimeString;
   }
+}
+
+export function formatDuration(minutes: number | null | undefined): string {
+  if (minutes === null || minutes === undefined || isNaN(minutes)) return '—';
+  if (minutes < 1) return '< 1 min';
+  if (minutes < 60) return `${minutes} min${minutes === 1 ? '' : 's'}`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMins = minutes % 60;
+  if (remainingMins === 0) return `${hours} hr${hours === 1 ? '' : 's'}`;
+  return `${hours} hr${hours === 1 ? '' : 's'} ${remainingMins} min${remainingMins === 1 ? '' : 's'}`;
 }
 

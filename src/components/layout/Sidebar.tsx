@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Users,
   PlaneTakeoff,
@@ -37,8 +37,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobile = false,
 }) => {
   const { currentUser, logout, isAdmin, switchRole } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const currentPath = location.pathname;
 
-  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
+  };
+
+  const getItemClass = (isActive: boolean) =>
     cn(
       'group relative flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 select-none',
       isActive
@@ -56,7 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const getDashboardRoute = () => {
-    if (isAdmin) return '/admin/dashboard';
+    if (isAdmin) return '/admin';
     switch (currentUser?.role) {
       case 'Transportation Team':
         return '/transportation/dashboard';
@@ -69,9 +77,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       case 'Meeting Hall Team':
         return '/meeting-hall/dashboard';
       default:
-        return '/login';
+        return '/';
     }
   };
+
+  const isInviteesActive = currentPath === '/invitees' || currentPath.startsWith('/invitees/');
+  const isDashboardActive = isAdmin
+    ? currentPath === '/admin' || currentPath === '/admin/dashboard'
+    : currentPath === getDashboardRoute() || currentPath.startsWith(getDashboardRoute());
 
   return (
     <aside
@@ -134,7 +147,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* 1. Centralized Invitees Database */}
         <NavLink
           to="/invitees"
-          className={navLinkClass}
+          className={getItemClass(isInviteesActive)}
           onClick={onCloseMobile}
           title={isCollapsed ? 'Centralized Invitees' : undefined}
         >
@@ -146,8 +159,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* 2. Executive Dashboard / Department Dashboard */}
         <NavLink
-          to={isAdmin ? '/admin/dashboard' : getDashboardRoute()}
-          className={navLinkClass}
+          to={isAdmin ? '/admin' : getDashboardRoute()}
+          className={getItemClass(isDashboardActive)}
           onClick={onCloseMobile}
           title={isCollapsed ? (isAdmin ? 'Executive Dashboard' : 'My Dashboard') : undefined}
         >
@@ -165,7 +178,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         <NavLink
           to="/transportation"
-          className={navLinkClass}
+          className={getItemClass(currentPath.startsWith('/transportation'))}
           onClick={onCloseMobile}
           title={isCollapsed ? 'Transportation' : undefined}
         >
@@ -175,7 +188,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         <NavLink
           to="/accommodation"
-          className={navLinkClass}
+          className={getItemClass(currentPath.startsWith('/accommodation'))}
           onClick={onCloseMobile}
           title={isCollapsed ? 'Accommodation' : undefined}
         >
@@ -185,7 +198,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         <NavLink
           to="/food"
-          className={navLinkClass}
+          className={getItemClass(currentPath.startsWith('/food'))}
           onClick={onCloseMobile}
           title={isCollapsed ? 'Food & Catering' : undefined}
         >
@@ -195,7 +208,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         <NavLink
           to="/reception"
-          className={navLinkClass}
+          className={getItemClass(currentPath.startsWith('/reception'))}
           onClick={onCloseMobile}
           title={isCollapsed ? 'Reception & Desk' : undefined}
         >
@@ -205,7 +218,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         <NavLink
           to="/meeting-hall"
-          className={navLinkClass}
+          className={getItemClass(currentPath.startsWith('/meeting-hall'))}
           onClick={onCloseMobile}
           title={isCollapsed ? 'Meeting Hall & Seating' : undefined}
         >
@@ -224,7 +237,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <NavLink
               to="/admin/volunteers"
-              className={navLinkClass}
+              className={getItemClass(currentPath === '/admin/volunteers')}
               onClick={onCloseMobile}
               title={isCollapsed ? 'Volunteer Management' : undefined}
             >
@@ -234,7 +247,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <NavLink
               to="/admin/reports"
-              className={navLinkClass}
+              className={getItemClass(currentPath === '/admin/reports')}
               onClick={onCloseMobile}
               title={isCollapsed ? 'Official Reports' : undefined}
             >
@@ -244,7 +257,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <NavLink
               to="/admin/audit-logs"
-              className={navLinkClass}
+              className={getItemClass(currentPath === '/admin/audit-logs')}
               onClick={onCloseMobile}
               title={isCollapsed ? 'Audit Trail' : undefined}
             >
@@ -254,7 +267,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <NavLink
               to="/admin/settings"
-              className={navLinkClass}
+              className={getItemClass(currentPath === '/admin/settings')}
               onClick={onCloseMobile}
               title={isCollapsed ? 'System Settings' : undefined}
             >
@@ -304,7 +317,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
         <button
-          onClick={logout}
+          onClick={handleLogout}
           title="Sign out"
           className="p-1.5 text-[#69756F] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
           aria-label="Sign out"

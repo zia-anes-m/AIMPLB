@@ -11,6 +11,10 @@ import {
   AuditLog,
   SystemSettings,
   UserRole,
+  EventAttendanceRecord,
+  MeetingRoom,
+  MeetingAttendanceRecord,
+  UnifiedActivityEvent,
 } from '@/types';
 import {
   INITIAL_PROFILES,
@@ -22,6 +26,9 @@ import {
   INITIAL_MEETING_HALL,
   INITIAL_AUDIT_LOGS,
   INITIAL_SYSTEM_SETTINGS,
+  INITIAL_MEETING_ROOMS,
+  INITIAL_EVENT_ATTENDANCE,
+  INITIAL_MEETING_ATTENDANCE,
 } from '@/lib/mockData';
 
 // Storage keys for demo / local database persistence
@@ -35,6 +42,9 @@ const STORAGE_KEYS = {
   MEETING_HALL: 'aimplb_db_meeting_hall_v1',
   AUDIT: 'aimplb_db_audit_v1',
   SETTINGS: 'aimplb_db_settings_v1',
+  EVENT_ATTENDANCE: 'aimplb_db_event_attendance_v1',
+  MEETING_ROOMS: 'aimplb_db_meeting_rooms_v1',
+  MEETING_ATTENDANCE: 'aimplb_db_meeting_attendance_v1',
 };
 
 // Local store helpers with lazy initialization
@@ -547,6 +557,47 @@ export async function deleteAccommodation(id: string, user: UserProfile): Promis
   return true;
 }
 
+export async function registerAccommodation(
+  accommodationId: string,
+  user: UserProfile
+): Promise<AccommodationRecord> {
+  const now = new Date().toISOString();
+  return updateAccommodation(
+    accommodationId,
+    {
+      hotel_registered: true,
+      registration_status: 'Registered',
+      registered_at: now,
+      registered_by: user.id,
+    },
+    user,
+    true
+  );
+}
+
+export async function undoAccommodationRegistration(
+  accommodationId: string,
+  user: UserProfile,
+  reason?: string
+): Promise<AccommodationRecord> {
+  const updated = await updateAccommodation(
+    accommodationId,
+    {
+      hotel_registered: false,
+      registration_status: 'Pending',
+      registered_at: undefined,
+      registered_by: undefined,
+      special_requirements: reason
+        ? `Registration undone by ${user.full_name}: ${reason}`
+        : undefined,
+    },
+    user,
+    true
+  );
+  recordLocalAudit(user, 'UNDO_REGISTRATION', 'accommodations', accommodationId, null, { reason });
+  return updated;
+}
+
 // -------------------------------------------------------------
 // FOOD SERVICE
 // -------------------------------------------------------------
@@ -1013,4 +1064,443 @@ export async function updateSystemSetting(
 
   setLocalItem(STORAGE_KEYS.SETTINGS, [...list]);
 }
+
+// -------------------------------------------------------------
+// EVENT ATTENDANCE (GATE IN/OUT) SERVICE
+// -------------------------------------------------------------
+export async function getEventAttendanceRecords(
+  inviteeId?: string,
+  eventDate?: string
+): Promise<EventAttendanceRecord[]> {
+  const invitees = await getInvitees();
+  const inviteeMap = new Map(invitees.map((i) => [i.id, i]));
+
+  if (isSupabaseConfigured) {
+    let query = supabase.from('event_attendance').select('*').order('entry_time', { ascending: false });
+    if (inviteeId) query = query.eq('invitee_id', inviteeId);
+    if (eventDate) query = query.eq('event_date', eventDate);
+    const { data, error } = await query;
+    if (!error && data) {
+      return (data as EventAttendanceRecord[]).map((r) => ({
+        ...r,
+        invitee: inviteeMap.get(r.invitee_id),
+      }));
+    }
+  }
+
+  let list = getLocalItem<EventAttendanceRecord[]>(STORAGE_KEYS.EVENT_ATTENDANCE, INITIAL_EVENT_ATTENDANCE);
+  if (inviteeId) list = list.filter((r) => r.invitee_id === inviteeId);
+  if (eventDate) list = list.filter((r) => r.event_date === eventDate);
+  return list.map((r) => ({
+    ...r,
+    invitee: inviteeMap.get(r.invitee_id),
+  }));
+}
+
+export async function recordEventEntry(
+  inviteeId: string,
+  user: UserProfile,
+  eventDate?: string,
+  notes?: string
+): Promise<EventAttendanceRecord> {
+  const now = new Date().toISOString();
+  const date = eventDate || now.slice(0, 10);
+
+  const newRec: EventAttendanceRecord = {
+    id: 'evt-att-' + Date.now(),
+    invitee_id: inviteeId,
+    event_date: date,
+    entry_time: now,
+    status: 'IN',
+    entry_recorded_by: user.id,
+    entry_recorded_by_name: user.full_name,
+    entry_notes: notes,
+    created_at: now,
+    updated_at: now,
+  };
+
+  if (isSupabaseConfigured) {
+    const { data, error } = await supabase.from('event_attendance').insert([newRec]).select().single();
+    if (!error && data) return data as EventAttendanceRecord;
+  }
+
+  const list = getLocalItem<EventAttendanceRecord[]>(STORAGE_KEYS.EVENT_ATTENDANCE, INITIAL_EVENT_ATTENDANCE);
+  setLocalItem(STORAGE_KEYS.EVENT_ATTENDANCE, [newRec, ...list]);
+  recordLocalAudit(user, 'EVENT_ENTRY', 'event_attendance', newRec.id, null, newRec);
+  return newRec;
+}
+
+export async function recordEventExit(
+  recordIdOrInviteeId: string,
+  user: UserProfile,
+  notes?: string
+): Promise<EventAttendanceRecord> {
+  const now = new Date().toISOString();
+  const list = getLocalItem<EventAttendanceRecord[]>(STORAGE_KEYS.EVENT_ATTENDANCE, INITIAL_EVENT_ATTENDANCE);
+
+  // Find open session
+  let rec = list.find((r) => r.id === recordIdOrInviteeId);
+  if (!rec) {
+    rec = list.find((r) => r.invitee_id === recordIdOrInviteeId && r.status === 'IN' && !r.exit_time);
+  }
+  if (!rec) {
+    // If no open session found, find latest session for this invitee
+    rec = list.find((r) => r.invitee_id === recordIdOrInviteeId);
+  }
+  if (!rec) throw new Error('No active gate entry session found for this delegate');
+
+  const entryTime = new Date(rec.entry_time).getTime();
+  const exitTime = new Date(now).getTime();
+  const durationMinutes = Math.max(0, Math.round((exitTime - entryTime) / (1000 * 60)));
+
+  const updated: EventAttendanceRecord = {
+    ...rec,
+    exit_time: now,
+    status: 'OUT',
+    exit_recorded_by: user.id,
+    exit_recorded_by_name: user.full_name,
+    exit_notes: notes ?? rec.exit_notes,
+    duration_minutes: durationMinutes,
+    updated_at: now,
+  };
+
+  if (isSupabaseConfigured) {
+    await supabase.from('event_attendance').update(updated).eq('id', rec.id);
+  }
+
+  const idx = list.findIndex((r) => r.id === rec!.id);
+  if (idx !== -1) {
+    list[idx] = updated;
+    setLocalItem(STORAGE_KEYS.EVENT_ATTENDANCE, [...list]);
+  }
+  recordLocalAudit(user, 'EVENT_EXIT', 'event_attendance', rec.id, rec, updated);
+  return updated;
+}
+
+export async function correctEventAttendance(
+  recordId: string,
+  updates: Partial<EventAttendanceRecord>,
+  user: UserProfile
+): Promise<EventAttendanceRecord> {
+  const now = new Date().toISOString();
+  const list = getLocalItem<EventAttendanceRecord[]>(STORAGE_KEYS.EVENT_ATTENDANCE, INITIAL_EVENT_ATTENDANCE);
+  const idx = list.findIndex((r) => r.id === recordId);
+  if (idx === -1) throw new Error('Event attendance record not found');
+
+  const old = list[idx];
+  const updated: EventAttendanceRecord = {
+    ...old,
+    ...updates,
+    updated_at: now,
+  };
+
+  if (updated.entry_time && updated.exit_time) {
+    const entryTime = new Date(updated.entry_time).getTime();
+    const exitTime = new Date(updated.exit_time).getTime();
+    if (exitTime >= entryTime) {
+      updated.duration_minutes = Math.round((exitTime - entryTime) / (1000 * 60));
+    }
+  }
+
+  if (isSupabaseConfigured) {
+    await supabase.from('event_attendance').update(updated).eq('id', recordId);
+  }
+
+  list[idx] = updated;
+  setLocalItem(STORAGE_KEYS.EVENT_ATTENDANCE, [...list]);
+  recordLocalAudit(user, 'UPDATE', 'event_attendance', recordId, old, updated);
+  return updated;
+}
+
+// -------------------------------------------------------------
+// MEETING ROOMS SERVICE
+// -------------------------------------------------------------
+export async function getMeetingRooms(): Promise<MeetingRoom[]> {
+  if (isSupabaseConfigured) {
+    const { data, error } = await supabase.from('meeting_rooms').select('*').order('created_at', { ascending: true });
+    if (!error && data) return data as MeetingRoom[];
+  }
+  return getLocalItem<MeetingRoom[]>(STORAGE_KEYS.MEETING_ROOMS, INITIAL_MEETING_ROOMS);
+}
+
+export async function createMeetingRoom(
+  name: string,
+  capacity = 100,
+  user?: UserProfile
+): Promise<MeetingRoom> {
+  const now = new Date().toISOString();
+  const newRoom: MeetingRoom = {
+    id: 'room-' + Date.now(),
+    name: name.trim(),
+    capacity,
+    is_active: true,
+    created_at: now,
+    updated_at: now,
+  };
+
+  if (isSupabaseConfigured) {
+    const { data, error } = await supabase.from('meeting_rooms').insert([newRoom]).select().single();
+    if (!error && data) return data as MeetingRoom;
+  }
+
+  const list = getLocalItem<MeetingRoom[]>(STORAGE_KEYS.MEETING_ROOMS, INITIAL_MEETING_ROOMS);
+  setLocalItem(STORAGE_KEYS.MEETING_ROOMS, [...list, newRoom]);
+  if (user) recordLocalAudit(user, 'INSERT', 'meeting_rooms', newRoom.id, null, newRoom);
+  return newRoom;
+}
+
+export async function updateMeetingRoom(
+  id: string,
+  updates: Partial<MeetingRoom>,
+  user: UserProfile
+): Promise<MeetingRoom> {
+  const now = new Date().toISOString();
+  const list = getLocalItem<MeetingRoom[]>(STORAGE_KEYS.MEETING_ROOMS, INITIAL_MEETING_ROOMS);
+  const idx = list.findIndex((r) => r.id === id);
+  if (idx === -1) throw new Error('Meeting room not found');
+
+  const old = list[idx];
+  const updated: MeetingRoom = {
+    ...old,
+    ...updates,
+    updated_at: now,
+  };
+
+  if (isSupabaseConfigured) {
+    await supabase.from('meeting_rooms').update(updated).eq('id', id);
+  }
+
+  list[idx] = updated;
+  setLocalItem(STORAGE_KEYS.MEETING_ROOMS, [...list]);
+  recordLocalAudit(user, 'UPDATE', 'meeting_rooms', id, old, updated);
+  return updated;
+}
+
+// -------------------------------------------------------------
+// MEETING ATTENDANCE TRACKING SERVICE
+// -------------------------------------------------------------
+export async function getMeetingAttendanceRecords(
+  inviteeId?: string,
+  roomName?: string,
+  date?: string
+): Promise<MeetingAttendanceRecord[]> {
+  const invitees = await getInvitees();
+  const inviteeMap = new Map(invitees.map((i) => [i.id, i]));
+
+  if (isSupabaseConfigured) {
+    let query = supabase.from('meeting_attendance').select('*').order('in_time', { ascending: false });
+    if (inviteeId) query = query.eq('invitee_id', inviteeId);
+    if (roomName) query = query.eq('room_name', roomName);
+    if (date) query = query.eq('meeting_date', date);
+    const { data, error } = await query;
+    if (!error && data) {
+      return (data as MeetingAttendanceRecord[]).map((r) => ({
+        ...r,
+        invitee: inviteeMap.get(r.invitee_id),
+      }));
+    }
+  }
+
+  let list = getLocalItem<MeetingAttendanceRecord[]>(STORAGE_KEYS.MEETING_ATTENDANCE, INITIAL_MEETING_ATTENDANCE);
+  if (inviteeId) list = list.filter((r) => r.invitee_id === inviteeId);
+  if (roomName) list = list.filter((r) => r.room_name === roomName);
+  if (date) list = list.filter((r) => r.meeting_date === date);
+  return list.map((r) => ({
+    ...r,
+    invitee: inviteeMap.get(r.invitee_id),
+  }));
+}
+
+export async function recordMeetingEntry(
+  inviteeId: string,
+  roomName: string,
+  sessionName = 'General Session',
+  user: UserProfile,
+  date?: string
+): Promise<MeetingAttendanceRecord> {
+  const now = new Date().toISOString();
+  const meetingDate = date || now.slice(0, 10);
+
+  const newRec: MeetingAttendanceRecord = {
+    id: 'mtg-att-' + Date.now(),
+    invitee_id: inviteeId,
+    room_name: roomName,
+    session_name: sessionName,
+    meeting_date: meetingDate,
+    in_time: now,
+    status: 'IN',
+    recorded_by: user.id,
+    recorded_by_name: user.full_name,
+    created_at: now,
+    updated_at: now,
+  };
+
+  if (isSupabaseConfigured) {
+    const { data, error } = await supabase.from('meeting_attendance').insert([newRec]).select().single();
+    if (!error && data) return data as MeetingAttendanceRecord;
+  }
+
+  const list = getLocalItem<MeetingAttendanceRecord[]>(STORAGE_KEYS.MEETING_ATTENDANCE, INITIAL_MEETING_ATTENDANCE);
+  setLocalItem(STORAGE_KEYS.MEETING_ATTENDANCE, [newRec, ...list]);
+  recordLocalAudit(user, 'MEETING_ENTRY', 'meeting_attendance', newRec.id, null, newRec);
+  return newRec;
+}
+
+export async function recordMeetingExit(
+  recordIdOrInviteeId: string,
+  user: UserProfile,
+  notes?: string
+): Promise<MeetingAttendanceRecord> {
+  const now = new Date().toISOString();
+  const list = getLocalItem<MeetingAttendanceRecord[]>(STORAGE_KEYS.MEETING_ATTENDANCE, INITIAL_MEETING_ATTENDANCE);
+
+  let rec = list.find((r) => r.id === recordIdOrInviteeId);
+  if (!rec) {
+    rec = list.find((r) => r.invitee_id === recordIdOrInviteeId && r.status === 'IN' && !r.out_time);
+  }
+  if (!rec) {
+    rec = list.find((r) => r.invitee_id === recordIdOrInviteeId);
+  }
+  if (!rec) throw new Error('No active meeting room session found');
+
+  const inTime = new Date(rec.in_time || rec.entry_time || rec.created_at).getTime();
+  const outTime = new Date(now).getTime();
+  const duration = Math.max(0, Math.round((outTime - inTime) / (1000 * 60)));
+
+  const updated: MeetingAttendanceRecord = {
+    ...rec,
+    out_time: now,
+    exit_time: now,
+    status: 'OUT',
+    notes: notes ?? rec.notes,
+    duration_minutes: duration,
+    updated_at: now,
+  };
+
+  if (isSupabaseConfigured) {
+    await supabase.from('meeting_attendance').update(updated).eq('id', rec.id);
+  }
+
+  const idx = list.findIndex((r) => r.id === rec!.id);
+  if (idx !== -1) {
+    list[idx] = updated;
+    setLocalItem(STORAGE_KEYS.MEETING_ATTENDANCE, [...list]);
+  }
+  recordLocalAudit(user, 'MEETING_EXIT', 'meeting_attendance', rec.id, rec, updated);
+  return updated;
+}
+
+// -------------------------------------------------------------
+// UNIFIED ACTIVITY HISTORY TIMELINE
+// -------------------------------------------------------------
+export async function getInviteeActivityTimeline(inviteeId: string): Promise<UnifiedActivityEvent[]> {
+  const events: UnifiedActivityEvent[] = [];
+
+  // 1. Transportation
+  const transports = await getTransportationRecords();
+  const invTrans = transports.filter((t) => t.invitee_id === inviteeId);
+  for (const t of invTrans) {
+    const timestamp = t.journey_date && t.journey_time ? `${t.journey_date}T${t.journey_time}:00` : t.created_at;
+    events.push({
+      id: `trans-${t.id}`,
+      invitee_id: inviteeId,
+      type: 'transportation',
+      title: `${t.journey_type === 'arrival' ? 'Arrival' : 'Departure'}: ${t.location_name}`,
+      description: `${t.transport_mode} • ${t.transport_number || 'Scheduled'}${
+        t.pickup_required ? ` • Pickup point: ${t.pickup_point || 'Station/Airport'}` : ''
+      }${t.driver_name ? ` (Driver: ${t.driver_name})` : ''}`,
+      timestamp,
+      status: t.journey_type,
+      badge_variant: t.journey_type === 'arrival' ? 'success' : 'secondary',
+      source_id: t.id,
+    });
+  }
+
+  // 2. Accommodation Registration
+  const accommodations = await getAccommodations();
+  const invAcc = accommodations.filter((a) => a.invitee_id === inviteeId);
+  for (const a of invAcc) {
+    if (a.hotel_registered && a.registered_at) {
+      events.push({
+        id: `acc-reg-${a.id}`,
+        invitee_id: inviteeId,
+        type: 'accommodation',
+        title: `Hotel Check-in / Registration at ${a.hotel_name || 'Hotel'}`,
+        description: `Room: ${a.room_number || 'TBD'} (${a.room_type || 'Standard'}) • Status: ${a.registration_status || 'Registered'}`,
+        timestamp: a.registered_at,
+        status: a.registration_status || 'Registered',
+        badge_variant: 'success',
+        source_id: a.id,
+      });
+    }
+  }
+
+  // 3. Event Reception Gate IN/OUT
+  const eventAttendance = await getEventAttendanceRecords(inviteeId);
+  for (const ea of eventAttendance) {
+    events.push({
+      id: `evt-in-${ea.id}`,
+      invitee_id: inviteeId,
+      type: 'reception',
+      title: `Event Gate Entry (IN)`,
+      description: `Entered venue on ${ea.event_date}${ea.entry_recorded_by_name ? ` (Recorded by ${ea.entry_recorded_by_name})` : ''}${
+        ea.entry_notes ? ` • ${ea.entry_notes}` : ''
+      }`,
+      timestamp: ea.entry_time,
+      status: 'IN',
+      badge_variant: 'success',
+      source_id: ea.id,
+    });
+    if (ea.exit_time) {
+      events.push({
+        id: `evt-out-${ea.id}`,
+        invitee_id: inviteeId,
+        type: 'reception',
+        title: `Event Gate Exit (OUT)`,
+        description: `Exited venue on ${ea.event_date}${ea.duration_minutes ? ` • Stay duration: ${ea.duration_minutes} mins` : ''}${
+          ea.exit_recorded_by_name ? ` (Recorded by ${ea.exit_recorded_by_name})` : ''
+        }`,
+        timestamp: ea.exit_time,
+        status: 'OUT',
+        badge_variant: 'warning',
+        source_id: ea.id,
+      });
+    }
+  }
+
+  // 4. Meeting Room Movements
+  const meetingAttendance = await getMeetingAttendanceRecords(inviteeId);
+  for (const ma of meetingAttendance) {
+    const inTimestamp = ma.in_time || ma.entry_time || ma.created_at;
+    events.push({
+      id: `mtg-in-${ma.id}`,
+      invitee_id: inviteeId,
+      type: 'meeting',
+      title: `Entered Room: ${ma.room_name}`,
+      description: `Session: ${ma.session_name}${ma.recorded_by_name ? ` • Recorded by ${ma.recorded_by_name}` : ''}`,
+      timestamp: inTimestamp,
+      status: 'IN',
+      badge_variant: 'info',
+      source_id: ma.id,
+    });
+    if (ma.out_time || ma.exit_time) {
+      const outTimestamp = ma.out_time || ma.exit_time || ma.updated_at;
+      events.push({
+        id: `mtg-out-${ma.id}`,
+        invitee_id: inviteeId,
+        type: 'meeting',
+        title: `Exited Room: ${ma.room_name}`,
+        description: `Session: ${ma.session_name}${ma.duration_minutes ? ` • Duration in room: ${ma.duration_minutes} mins` : ''}`,
+        timestamp: outTimestamp,
+        status: 'OUT',
+        badge_variant: 'secondary',
+        source_id: ma.id,
+      });
+    }
+  }
+
+  // Sort descending by timestamp
+  return events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+}
+
 

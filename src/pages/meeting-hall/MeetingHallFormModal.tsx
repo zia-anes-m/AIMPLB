@@ -11,10 +11,12 @@ import {
   updateMeetingHallRecord,
   getInvitees,
   checkSeatConflict,
+  getMeetingRooms,
 } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { AlertCircle, AlertTriangle } from 'lucide-react';
+import { MeetingRoom } from '@/types';
 
 const hallSchema = z.object({
   invitee_id: z.string().min(1, 'Please select an invitee'),
@@ -46,6 +48,7 @@ export const MeetingHallFormModal: React.FC<MeetingHallFormModalProps> = ({
   const { currentUser } = useAuth();
   const toast = useToast();
   const [invitees, setInvitees] = useState<Invitee[]>([]);
+  const [rooms, setRooms] = useState<MeetingRoom[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [seatConflict, setSeatConflict] = useState<{
@@ -72,11 +75,12 @@ export const MeetingHallFormModal: React.FC<MeetingHallFormModalProps> = ({
   });
 
   useEffect(() => {
-    async function fetchInv() {
-      const data = await getInvitees();
-      setInvitees(data);
+    async function fetchData() {
+      const [invs, roomList] = await Promise.all([getInvitees(), getMeetingRooms()]);
+      setInvitees(invs);
+      setRooms(roomList);
     }
-    if (isOpen) fetchInv();
+    if (isOpen) fetchData();
   }, [isOpen]);
 
   useEffect(() => {
@@ -203,10 +207,22 @@ export const MeetingHallFormModal: React.FC<MeetingHallFormModalProps> = ({
               {...register('meeting_hall')}
               className="h-10 w-full rounded-lg border border-[#E3E7E4] bg-white px-3 text-xs sm:text-sm text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20 focus:border-[#164734]"
             >
-              <option value="Main Auditorium">Main Auditorium (General Sessions)</option>
-              <option value="Conference Hall A">Conference Hall A</option>
-              <option value="Conference Hall B">Conference Hall B</option>
-              <option value="Executive Committee Room">Executive Committee Room</option>
+              {rooms.length > 0 ? (
+                rooms
+                  .filter((r) => r.is_active)
+                  .map((r) => (
+                    <option key={r.id} value={r.name}>
+                      {r.name}
+                    </option>
+                  ))
+              ) : (
+                <>
+                  <option value="Main Auditorium">Main Auditorium</option>
+                  <option value="Founder Committee Room">Founder Committee Room</option>
+                  <option value="Executive Committee Room">Executive Committee Room</option>
+                  <option value="Member Committee Room">Member Committee Room</option>
+                </>
+              )}
             </select>
           </div>
 

@@ -7,7 +7,10 @@ import {
   MeetingHallRecord, 
   UserProfile, 
   AuditLog, 
-  SystemSettings 
+  SystemSettings,
+  EventAttendanceRecord,
+  MeetingRoom,
+  MeetingAttendanceRecord,
 } from '@/types';
 
 export const INITIAL_PROFILES: UserProfile[] = [
@@ -357,6 +360,10 @@ export const INITIAL_ACCOMMODATIONS: AccommodationRecord[] = [
     check_out_date: '2026-12-16',
     check_out_time: '18:00',
     occupancy: 'Single',
+    hotel_registered: true,
+    registration_status: 'Registered',
+    registered_at: '2026-12-14T00:30:00.000Z', // 14 Dec 2026, 06:00 AM IST
+    registered_by: 'Accommodation Team',
     remarks: 'Presidential suite with meeting facility for Board officials.',
     created_by: 'user-acc-01',
     updated_by: 'user-acc-01',
@@ -375,6 +382,10 @@ export const INITIAL_ACCOMMODATIONS: AccommodationRecord[] = [
     check_out_date: '2026-12-16',
     check_out_time: '14:00',
     occupancy: 'Single',
+    hotel_registered: true,
+    registration_status: 'Registered',
+    registered_at: '2026-12-14T00:30:00.000Z', // 14 Dec 2026, 06:00 AM IST
+    registered_by: 'Accommodation Team',
     remarks: 'Ground / 2nd floor near elevator requested.',
     created_by: 'user-acc-01',
     updated_by: 'user-acc-01',
@@ -393,6 +404,10 @@ export const INITIAL_ACCOMMODATIONS: AccommodationRecord[] = [
     check_out_date: '2026-12-16',
     check_out_time: '12:00',
     occupancy: 'Single',
+    hotel_registered: false,
+    registration_status: 'Not Registered',
+    registered_at: null,
+    registered_by: null,
     remarks: 'Confirmed via Secretariat desk.',
     created_by: 'user-acc-01',
     updated_by: 'user-acc-01',
@@ -411,6 +426,10 @@ export const INITIAL_ACCOMMODATIONS: AccommodationRecord[] = [
     check_out_date: '2026-12-16',
     check_out_time: '11:00',
     occupancy: 'Single',
+    hotel_registered: true,
+    registration_status: 'Registered',
+    registered_at: '2026-12-13T14:30:00.000Z', // 13 Dec 2026, 08:00 PM IST
+    registered_by: 'Accommodation Team',
     remarks: 'Hajj House guest room allocation.',
     created_by: 'user-acc-01',
     updated_by: 'user-acc-01',
@@ -429,6 +448,10 @@ export const INITIAL_ACCOMMODATIONS: AccommodationRecord[] = [
     check_out_date: '2026-12-16',
     check_out_time: '15:00',
     occupancy: 'Single',
+    hotel_registered: false,
+    registration_status: 'Not Registered',
+    registered_at: null,
+    registered_by: null,
     remarks: 'Kerala delegation block.',
     created_by: 'user-acc-01',
     updated_by: 'user-acc-01',
@@ -814,7 +837,12 @@ export const INITIAL_SYSTEM_SETTINGS: SystemSettings[] = [
     id: 'sett-006',
     setting_key: 'meeting_hall_options',
     setting_value: {
-      halls: ['Main Auditorium', 'Conference Hall A', 'Conference Hall B', 'Executive Committee Room'],
+      halls: [
+        'Main Auditorium',
+        'Founder Committee Room',
+        'Executive Committee Room',
+        'Member Committee Room',
+      ],
       sections: [
         'Presidium / VIP Row',
         'Founder Members Section',
@@ -825,6 +853,202 @@ export const INITIAL_SYSTEM_SETTINGS: SystemSettings[] = [
       ],
     },
     updated_at: '2026-11-01T10:00:00Z',
+  },
+];
+
+// --------------------------------------------------------------------
+// MEETING ROOMS MASTER
+// --------------------------------------------------------------------
+export const INITIAL_MEETING_ROOMS: MeetingRoom[] = [
+  {
+    id: 'room-001',
+    name: 'Main Auditorium',
+    capacity: 500,
+    description: 'Main plenary hall for general session & keynote addresses',
+    is_active: true,
+    room_order: 1,
+    created_at: '2026-11-01T10:00:00Z',
+  },
+  {
+    id: 'room-002',
+    name: 'Founder Committee Room',
+    capacity: 40,
+    description: 'Dedicated committee room for Board founders and presidium officials',
+    is_active: true,
+    room_order: 2,
+    created_at: '2026-11-01T10:00:00Z',
+  },
+  {
+    id: 'room-003',
+    name: 'Executive Committee Room',
+    capacity: 60,
+    description: 'Executive committee and legal panel deliberations room',
+    is_active: true,
+    room_order: 3,
+    created_at: '2026-11-01T10:00:00Z',
+  },
+  {
+    id: 'room-004',
+    name: 'Member Committee Room',
+    capacity: 80,
+    description: 'Working committee room for general session members and delegates',
+    is_active: true,
+    room_order: 4,
+    created_at: '2026-11-01T10:00:00Z',
+  },
+];
+
+// --------------------------------------------------------------------
+// INITIAL EVENT RECEPTION ATTENDANCE LOGS (Gate IN / OUT)
+// --------------------------------------------------------------------
+export const INITIAL_EVENT_ATTENDANCE: EventAttendanceRecord[] = [
+  // Maulana Khalid Saifullah Rahmani (inv-001) - 14 Dec
+  {
+    id: 'att-gate-001',
+    invitee_id: 'inv-001',
+    event_date: '2026-12-14',
+    entry_time: '2026-12-14T02:00:00.000Z', // 07:30 AM IST
+    exit_time: '2026-12-14T07:30:00.000Z',  // 01:00 PM IST
+    entry_recorded_by: 'Br. Fazalur Rahman (Reception)',
+    exit_recorded_by: 'Br. Saleem Akram (Reception)',
+    status: 'Completed',
+    notes: 'Morning Inaugural Plenary session entry',
+    created_at: '2026-12-14T02:00:00.000Z',
+    updated_at: '2026-12-14T07:30:00.000Z',
+  },
+  {
+    id: 'att-gate-002',
+    invitee_id: 'inv-001',
+    event_date: '2026-12-14',
+    entry_time: '2026-12-14T09:00:00.000Z', // 02:30 PM IST
+    exit_time: null, // Currently Inside the Event
+    entry_recorded_by: 'Br. Fazalur Rahman (Reception)',
+    exit_recorded_by: null,
+    status: 'Inside',
+    notes: 'Afternoon working committee session re-entry',
+    created_at: '2026-12-14T09:00:00.000Z',
+    updated_at: '2026-12-14T09:00:00.000Z',
+  },
+
+  // Maulana Arshad Madani (inv-002) - 14 Dec (Multiple Movements)
+  {
+    id: 'att-gate-003',
+    invitee_id: 'inv-002',
+    event_date: '2026-12-14',
+    entry_time: '2026-12-14T02:15:00.000Z', // 07:45 AM IST
+    exit_time: '2026-12-14T05:30:00.000Z',  // 11:00 AM IST
+    entry_recorded_by: 'Br. Fazalur Rahman (Reception)',
+    exit_recorded_by: 'Br. Nooruddin (Reception)',
+    status: 'Completed',
+    notes: 'Founder consultation entry',
+    created_at: '2026-12-14T02:15:00.000Z',
+    updated_at: '2026-12-14T05:30:00.000Z',
+  },
+  {
+    id: 'att-gate-004',
+    invitee_id: 'inv-002',
+    event_date: '2026-12-14',
+    entry_time: '2026-12-14T08:30:00.000Z', // 02:00 PM IST
+    exit_time: '2026-12-14T11:30:00.000Z',  // 05:00 PM IST
+    entry_recorded_by: 'Br. Saleem Akram (Reception)',
+    exit_recorded_by: 'Br. Fazalur Rahman (Reception)',
+    status: 'Completed',
+    notes: 'Main Auditorium session attendance',
+    created_at: '2026-12-14T08:30:00.000Z',
+    updated_at: '2026-12-14T11:30:00.000Z',
+  },
+  {
+    id: 'att-gate-005',
+    invitee_id: 'inv-002',
+    event_date: '2026-12-14',
+    entry_time: '2026-12-14T13:30:00.000Z', // 07:00 PM IST
+    exit_time: null, // Currently Inside the Event
+    entry_recorded_by: 'Br. Fazalur Rahman (Reception)',
+    exit_recorded_by: null,
+    status: 'Inside',
+    notes: 'Evening Member Committee session',
+    created_at: '2026-12-14T13:30:00.000Z',
+    updated_at: '2026-12-14T13:30:00.000Z',
+  },
+
+  // Advocate M. R. Shamshad (inv-003) - 14 Dec
+  {
+    id: 'att-gate-006',
+    invitee_id: 'inv-003',
+    event_date: '2026-12-14',
+    entry_time: '2026-12-14T03:30:00.000Z', // 09:00 AM IST
+    exit_time: '2026-12-14T08:00:00.000Z',  // 01:30 PM IST
+    entry_recorded_by: 'Br. Nooruddin (Reception)',
+    exit_recorded_by: 'Br. Saleem Akram (Reception)',
+    status: 'Completed',
+    notes: 'Legal committee morning gate check-in',
+    created_at: '2026-12-14T03:30:00.000Z',
+    updated_at: '2026-12-14T08:00:00.000Z',
+  },
+];
+
+// --------------------------------------------------------------------
+// INITIAL MEETING ROOM ATTENDANCE SESSIONS
+// --------------------------------------------------------------------
+export const INITIAL_MEETING_ATTENDANCE: MeetingAttendanceRecord[] = [
+  // Maulana Arshad Madani (inv-002) - 14 Dec Movement Across Rooms
+  {
+    id: 'matt-001',
+    invitee_id: 'inv-002',
+    room_name: 'Founder Committee Room',
+    session_name: 'Board Founders Inaugural Dialogue',
+    meeting_date: '2026-12-14',
+    entry_time: '2026-12-14T02:30:00.000Z', // 08:00 AM IST
+    exit_time: '2026-12-14T03:30:00.000Z',  // 09:00 AM IST
+    recorded_by: 'Meeting Hall Team',
+    exit_recorded_by: 'Meeting Hall Team',
+    status: 'Completed',
+    created_at: '2026-12-14T02:30:00.000Z',
+    updated_at: '2026-12-14T03:30:00.000Z',
+  },
+  {
+    id: 'matt-002',
+    invitee_id: 'inv-002',
+    room_name: 'Main Auditorium',
+    session_name: 'Opening Plenary Session',
+    meeting_date: '2026-12-14',
+    entry_time: '2026-12-14T08:30:00.000Z', // 02:00 PM IST
+    exit_time: '2026-12-14T11:30:00.000Z',  // 05:00 PM IST
+    recorded_by: 'Meeting Hall Team',
+    exit_recorded_by: 'Meeting Hall Team',
+    status: 'Completed',
+    created_at: '2026-12-14T08:30:00.000Z',
+    updated_at: '2026-12-14T11:30:00.000Z',
+  },
+  {
+    id: 'matt-003',
+    invitee_id: 'inv-002',
+    room_name: 'Member Committee Room',
+    session_name: 'Working Sub-Committee Review',
+    meeting_date: '2026-12-14',
+    entry_time: '2026-12-14T13:30:00.000Z', // 07:00 PM IST
+    exit_time: '2026-12-14T15:30:00.000Z',  // 09:00 PM IST
+    recorded_by: 'Meeting Hall Team',
+    exit_recorded_by: 'Meeting Hall Team',
+    status: 'Completed',
+    created_at: '2026-12-14T13:30:00.000Z',
+    updated_at: '2026-12-14T15:30:00.000Z',
+  },
+
+  // Maulana Khalid Saifullah Rahmani (inv-001) - 14 Dec Main Auditorium
+  {
+    id: 'matt-004',
+    invitee_id: 'inv-001',
+    room_name: 'Main Auditorium',
+    session_name: 'Opening Plenary Session',
+    meeting_date: '2026-12-14',
+    entry_time: '2026-12-14T08:30:00.000Z', // 02:00 PM IST
+    exit_time: null, // Currently in session
+    recorded_by: 'Meeting Hall Team',
+    exit_recorded_by: null,
+    status: 'Inside',
+    created_at: '2026-12-14T08:30:00.000Z',
+    updated_at: '2026-12-14T08:30:00.000Z',
   },
 ];
 

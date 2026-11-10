@@ -4,16 +4,13 @@ import {
   UserCheck,
   Clock,
   CheckCircle2,
-  AlertCircle,
   Eye,
-  Edit,
   Download,
-  Filter,
-  Package,
   LayoutGrid,
   List,
-  Sparkles,
-  User,
+  Calendar,
+  LogOut,
+  LogIn,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -23,40 +20,44 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { SearchInput } from '@/components/common/SearchInput';
 import { EmptyState } from '@/components/common/EmptyState';
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
-import { ReceptionFormModal } from './ReceptionFormModal';
-import { ReceptionRecord, ReceptionStatus } from '@/types';
+import { Invitee, EventAttendanceRecord } from '@/types';
 import {
-  getReceptionRecords,
-  updateReceptionRecord,
+  getInvitees,
+  getEventAttendanceRecords,
+  recordEventEntry,
+  recordEventExit,
 } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { exportToCSV } from '@/lib/exportUtils';
-import { formatDateTime } from '@/lib/utils';
+import { formatDateTime, formatDate } from '@/lib/utils';
 
 export const ReceptionDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const toast = useToast();
 
-  const [records, setRecords] = useState<ReceptionRecord[]>([]);
+  const [invitees, setInvitees] = useState<Invitee[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<EventAttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isActionLoading, setIsActionLoading] = useState(false);
   const [viewMode, setViewMode] = useState<'auto' | 'cards' | 'table'>('auto');
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-
-  // Modal
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [recordToEdit, setRecordToEdit] = useState<ReceptionRecord | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'inside' | 'outside'>('all');
+  const [selectedDate, setSelectedDate] = useState<string>('2026-12-14');
 
   const loadData = useCallback(async () => {
     try {
-      const recs = await getReceptionRecords();
-      setRecords(recs);
+      const [invs, atts] = await Promise.all([
+        getInvitees(),
+        getEventAttendanceRecords(),
+      ]);
+      setInvitees(invs);
+      setAttendanceRecords(atts);
     } catch (err) {
-      console.error('Error loading reception data:', err);
+      console.error('Error loading gate reception data:', err);
     } finally {
       setIsLoading(false);
     }
@@ -69,75 +70,93 @@ export const ReceptionDashboard: React.FC = () => {
     return () => window.removeEventListener('aimplb_db_update', handleUpdate);
   }, [loadData]);
 
-  // Compute actual database metrics
+  // Compute Active Presence map: Invitee ID -> active session (if status === 'IN' and !exit_time)
+  const activeSessionMap = useMemo(() => {
+    const map = new Map<string, EventAttendanceRecord>();
+    for (const att of attendanceRecords) {
+      if (att.status === 'IN' && !att.exit_time && !map.has(att.invitee_id)) {
+        map.set(att.invitee_id, att);
+      }
+    }
+    return map;
+  }, [attendanceRecords]);
+
+  // Compute stats for selected date
   const stats = useMemo(() => {
-    const totalExpected = records.length;
-    const checkedIn = records.filter((r) => r.reception_status === 'Checked In').length;
-    const arrived = records.filter((r) => r.reception_status === 'Arrived').length;
-    const received = records.filter((r) => r.reception_status === 'Received').length;
-    const completed = records.filter((r) => r.reception_status === 'Completed').length;
-    const arrivalsCompleted = checkedIn + completed;
-    const pendingReception = records.filter((r) => r.reception_status === 'Expected').length;
-    const notYetReceived = totalExpected - (arrived + received + checkedIn + completed);
+    const totalInvitees = invitees.length;
+    const currentlyInside = activeSessionMap.size;
+    const currentlyOutside = Math.max(0, totalInvitees - currentlyInside);
+
+    // Records on selected date
+    const dateRecords = selectedDate === 'all'
+      ? attendanceRecords
+      : attendanceRecords.filter((r) => r.event_date === selectedDate);
+
+    const totalEntriesToday = dateRecords.filter((r) => Boolean(r.entry_time)).length;
+    const totalExitsToday = dateRecords.filter((r) => Boolean(r.exit_time)).length;
 
     return {
-      totalExpected,
-      arrivalsCompleted,
-      pendingReception,
-      checkedIn,
-      notYetReceived: Math.max(0, notYetReceived),
-      kitsDistributed: records.filter((r) => r.welcome_kit_status === 'Distributed').length,
+      totalInvitees,
+      currentlyInside,
+      currentlyOutside,
+      totalEntriesToday,
+      totalExitsToday,
     };
-  }, [records]);
+  }, [invitees, attendanceRecords, activeSessionMap, selectedDate]);
 
-  // Filtered records
-  const filteredRecords = useMemo(() => {
-    return records.filter((r) => {
-      const q = searchQuery.toLowerCase().trim();
-      const matchesSearch =
-        !q ||
-        r.invitee?.full_name.toLowerCase().includes(q) ||
-        r.invitee?.invitee_code.toLowerCase().includes(q) ||
-        r.assigned_volunteer?.toLowerCase().includes(q) ||
-        r.reception_point?.toLowerCase().includes(q);
-
-      const matchesStatus = statusFilter === 'all' || r.reception_status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [records, searchQuery, statusFilter]);
-
-  // Quick status update direct from table / mobile card
-  const handleQuickStatusChange = async (
-    record: ReceptionRecord,
-    newStatus: ReceptionStatus
-  ) => {
+  // One-click Gate Entry (IN)
+  const handleQuickEntry = async (inviteeId: string, inviteeName: string) => {
     if (!currentUser) return;
+    setIsActionLoading(true);
     try {
-      const now = new Date().toISOString();
-      await updateReceptionRecord(
-        record.id,
-        {
-          reception_status: newStatus,
-          actual_arrival: record.actual_arrival || now,
-          welcome_kit_status: newStatus === 'Checked In' ? 'Distributed' : record.welcome_kit_status,
-          registration_status: newStatus === 'Checked In' ? 'Completed' : record.registration_status,
-        },
-        currentUser
-      );
-      toast.success(
-        `${record.invitee?.full_name} Checked In!`,
-        'Welcome kit distributed and registration completed.'
-      );
+      await recordEventEntry(inviteeId, currentUser, selectedDate === 'all' ? '2026-12-14' : selectedDate);
+      toast.show(`Gate entry (IN) recorded for ${inviteeName}.`, 'success');
       await loadData();
-    } catch (err) {
-      console.error('Quick update error:', err);
-      toast.error('Failed to update reception status.');
+    } catch (err: any) {
+      toast.show(err.message || 'Failed to record gate entry.', 'error');
+    } finally {
+      setIsActionLoading(false);
     }
   };
 
+  // One-click Gate Exit (OUT)
+  const handleQuickExit = async (inviteeId: string, inviteeName: string) => {
+    if (!currentUser) return;
+    setIsActionLoading(true);
+    try {
+      await recordEventExit(inviteeId, currentUser);
+      toast.show(`Gate exit (OUT) recorded for ${inviteeName}.`, 'info');
+      await loadData();
+    } catch (err: any) {
+      toast.show(err.message || 'Failed to record gate exit.', 'error');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  // Filtered invitees based on search and inside/outside presence
+  const filteredInvitees = useMemo(() => {
+    return invitees.filter((inv) => {
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        inv.full_name.toLowerCase().includes(q) ||
+        inv.invitee_code.toLowerCase().includes(q) ||
+        inv.phone.includes(q) ||
+        inv.city.toLowerCase().includes(q);
+
+      const isInside = activeSessionMap.has(inv.id);
+      let matchesStatus = true;
+      if (statusFilter === 'inside') matchesStatus = isInside;
+      if (statusFilter === 'outside') matchesStatus = !isInside;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [invitees, activeSessionMap, searchQuery, statusFilter]);
+
   const handleExportCSV = () => {
-    if (filteredRecords.length === 0) {
-      toast.warning('No records to export.');
+    if (attendanceRecords.length === 0) {
+      toast.show('No gate attendance movements to export.', 'warning');
       return;
     }
 
@@ -146,305 +165,288 @@ export const ReceptionDashboard: React.FC = () => {
       'Invitee Name',
       'Category',
       'Phone',
-      'Reception Status',
-      'Expected Arrival',
-      'Actual Arrival',
-      'Assigned Volunteer',
-      'Reception Desk',
-      'Welcome Kit',
-      'Registration Status',
-      'Remarks',
+      'Event Date',
+      'Entry Time (IN)',
+      'Exit Time (OUT)',
+      'Duration (Mins)',
+      'Status',
+      'Recorded By',
     ];
 
-    const rows = filteredRecords.map((r) => [
+    const recordsToExport = selectedDate === 'all'
+      ? attendanceRecords
+      : attendanceRecords.filter((r) => r.event_date === selectedDate);
+
+    const rows = recordsToExport.map((r) => [
       r.invitee?.invitee_code || '',
       r.invitee?.full_name || '',
       r.invitee?.category || '',
       r.invitee?.phone || '',
-      r.reception_status,
-      formatDateTime(r.expected_arrival),
-      formatDateTime(r.actual_arrival),
-      r.assigned_volunteer || '',
-      r.reception_point || '',
-      r.welcome_kit_status || '',
-      r.registration_status || '',
-      r.remarks || '',
+      r.event_date,
+      r.entry_time,
+      r.exit_time || 'Active Inside',
+      r.duration_minutes || '',
+      r.status,
+      r.entry_recorded_by_name || '',
     ]);
 
-    exportToCSV('AIMPLB_Reception_And_CheckIn_Status', headers, rows);
-    toast.success('Reception log exported to CSV', `${filteredRecords.length} records.`);
+    exportToCSV(`AIMPLB_Gate_Attendance_${selectedDate}`, headers, rows);
+    toast.show('Gate attendance export downloaded.', 'success');
   };
 
-  const getStatusVariant = (status: ReceptionStatus) => {
-    switch (status) {
-      case 'Checked In':
-      case 'Completed':
-        return 'success' as const;
-      case 'Arrived':
-      case 'Received':
-        return 'info' as const;
-      case 'Expected':
-      default:
-        return 'pending' as const;
-    }
-  };
+  if (isLoading) {
+    return <LoadingSkeleton rows={6} />;
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Page Header */}
       <PageHeader
-        title="Reception & Help Desk Management"
-        subtitle="Coordinate delegate greeting, registration desk check-ins, and conference kit handovers"
-        badge={`${records.length} Tracked`}
+        title="Event Reception & Gate Attendance"
+        subtitle="Live physical venue entry and exit verification across session dates. Decoupled from hotel and room management."
         actions={
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={handleExportCSV}
-              className="flex items-center gap-1.5"
+              className="flex items-center gap-1.5 h-9 text-xs"
             >
               <Download className="h-3.5 w-3.5" />
-              <span className="hidden xs:inline">Export CSV</span>
-            </Button>
-
-            <Button
-              size="sm"
-              onClick={() => {
-                setRecordToEdit(null);
-                setIsModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 bg-[#164734] hover:bg-[#113829] text-white shadow-sm"
-            >
-              <UserCheck className="h-3.5 w-3.5" />
-              <span>Record Arrival</span>
+              <span className="hidden sm:inline">Export Gate Log</span>
             </Button>
           </div>
         }
       />
 
-      {/* Real Computed Statistical Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      {/* Date Filter Bar */}
+      <div className="bg-white p-3.5 rounded-2xl border border-[#E3E7E4] shadow-card-subtle flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-[#164734]" />
+          <span className="text-xs font-bold uppercase tracking-wider text-[#164734]">
+            Session Operating Date:
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
+          {[
+            { label: 'Day 1 (14 Dec 2026)', value: '2026-12-14' },
+            { label: 'Day 2 (15 Dec 2026)', value: '2026-12-15' },
+            { label: 'Day 3 (16 Dec 2026)', value: '2026-12-16' },
+            { label: 'All Session Dates', value: 'all' },
+          ].map((df) => (
+            <button
+              key={df.value}
+              onClick={() => setSelectedDate(df.value)}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap ${
+                selectedDate === df.value
+                  ? 'bg-[#164734] text-white font-semibold shadow-xs'
+                  : 'bg-[#FAF9F6] text-[#69756F] hover:bg-[#E8F1EC] border border-[#E3E7E4]'
+              }`}
+            >
+              {df.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 5 Core Metric Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4">
         <StatCard
-          title="Expected Arrivals"
-          value={stats.totalExpected}
-          subtitle="Tracked delegates"
-          icon={Clock}
+          title="Total Invitees"
+          value={stats.totalInvitees}
+          subtitle="All confirmed delegates"
+          icon={UserCheck}
         />
         <StatCard
-          title="Arrivals Done"
-          value={stats.arrivalsCompleted}
-          subtitle="Checked in & done"
-          icon={CheckCircle2}
+          title="Currently Inside"
+          value={stats.currentlyInside}
+          subtitle="Physical venue presence"
+          icon={LogIn}
           variant="success"
         />
         <StatCard
-          title="In Transit"
-          value={stats.pendingReception}
-          subtitle="Awaiting gate arrival"
-          icon={AlertCircle}
-          variant={stats.pendingReception > 0 ? 'warning' : 'default'}
+          title="Currently Outside"
+          value={stats.currentlyOutside}
+          subtitle="Not checked in at gate"
+          icon={LogOut}
         />
         <StatCard
-          title="Checked In"
-          value={stats.checkedIn}
-          subtitle="At venue desk"
-          icon={UserCheck}
-          variant="highlight"
+          title="Total Entries Today"
+          value={stats.totalEntriesToday}
+          subtitle={`Gate check-ins on ${selectedDate === 'all' ? 'all days' : formatDate(selectedDate)}`}
+          icon={Clock}
         />
         <StatCard
-          title="Not Received"
-          value={stats.notYetReceived}
-          subtitle="Awaiting pickup"
-          icon={AlertCircle}
-        />
-        <StatCard
-          title="Kits Handed Over"
-          value={stats.kitsDistributed}
-          subtitle="Badges & bags"
-          icon={Package}
+          title="Total Exits Today"
+          value={stats.totalExitsToday}
+          subtitle="Gate checkout events"
+          icon={CheckCircle2}
         />
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white p-3.5 rounded-xl border border-[#E3E7E4] shadow-card-subtle flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-        <SearchInput
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Search delegate, volunteer, reception desk..."
-          className="w-full md:w-80"
-        />
+      {/* Search & Presence Filter Bar */}
+      <div className="bg-white p-4 rounded-2xl border border-[#E3E7E4] shadow-card-subtle flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+        <div className="flex-1 max-w-md">
+          <SearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search delegate by name, phone, or city..."
+          />
+        </div>
 
-        <div className="flex flex-wrap items-center gap-2 justify-between md:justify-end">
-          <div className="flex items-center gap-2 flex-1 sm:flex-initial">
-            <Filter className="h-3.5 w-3.5 text-[#69756F] shrink-0" />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-9 w-full sm:w-auto text-xs rounded-lg border border-[#E3E7E4] bg-white px-3 text-[#1A221E] font-medium focus:outline-none focus:ring-2 focus:ring-[#164734]/20 focus:border-[#164734]"
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center bg-[#FAF9F6] p-1 rounded-lg border border-[#E3E7E4] text-xs">
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-3 py-1 rounded-md font-medium transition-colors ${
+                statusFilter === 'all'
+                  ? 'bg-white text-[#164734] shadow-xs font-semibold'
+                  : 'text-[#69756F] hover:text-[#1A221E]'
+              }`}
             >
-              <option value="all">All Reception Statuses ({records.length})</option>
-              <option value="Expected">Expected</option>
-              <option value="Arrived">Arrived</option>
-              <option value="Received">Received</option>
-              <option value="Checked In">Checked In</option>
-              <option value="Completed">Completed</option>
-            </select>
+              All ({invitees.length})
+            </button>
+            <button
+              onClick={() => setStatusFilter('inside')}
+              className={`px-3 py-1 rounded-md font-medium transition-colors ${
+                statusFilter === 'inside'
+                  ? 'bg-[#E8F1EC] text-[#164734] shadow-xs font-semibold'
+                  : 'text-[#69756F] hover:text-[#1A221E]'
+              }`}
+            >
+              Inside ({stats.currentlyInside})
+            </button>
+            <button
+              onClick={() => setStatusFilter('outside')}
+              className={`px-3 py-1 rounded-md font-medium transition-colors ${
+                statusFilter === 'outside'
+                  ? 'bg-white text-[#164734] shadow-xs font-semibold'
+                  : 'text-[#69756F] hover:text-[#1A221E]'
+              }`}
+            >
+              Outside ({stats.currentlyOutside})
+            </button>
           </div>
 
           {/* View toggle */}
-          <div className="hidden sm:flex items-center rounded-lg border border-[#E3E7E4] bg-[#FAF9F6] p-0.5">
-            <button
-              onClick={() => setViewMode('auto')}
-              title="Responsive View"
-              className={`p-1.5 rounded-md text-xs font-medium transition-all ${
-                viewMode === 'auto'
-                  ? 'bg-white text-[#164734] shadow-xs'
-                  : 'text-[#69756F] hover:text-[#1A221E]'
-              }`}
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-            </button>
+          <div className="hidden md:flex items-center bg-[#FAF9F6] p-1 rounded-lg border border-[#E3E7E4]">
             <button
               onClick={() => setViewMode('table')}
-              title="Table View"
-              className={`p-1.5 rounded-md text-xs font-medium transition-all ${
-                viewMode === 'table'
-                  ? 'bg-white text-[#164734] shadow-xs'
-                  : 'text-[#69756F] hover:text-[#1A221E]'
+              className={`p-1.5 rounded-md transition-colors ${
+                viewMode === 'table' ? 'bg-white shadow-xs text-[#164734]' : 'text-[#69756F]'
               }`}
+              title="Table View"
             >
-              <List className="h-3.5 w-3.5" />
+              <List className="h-4 w-4" />
             </button>
             <button
               onClick={() => setViewMode('cards')}
-              title="Cards View"
-              className={`p-1.5 rounded-md text-xs font-medium transition-all ${
-                viewMode === 'cards'
-                  ? 'bg-white text-[#164734] shadow-xs'
-                  : 'text-[#69756F] hover:text-[#1A221E]'
+              className={`p-1.5 rounded-md transition-colors ${
+                viewMode === 'cards' ? 'bg-white shadow-xs text-[#164734]' : 'text-[#69756F]'
               }`}
+              title="Cards View"
             >
-              <LayoutGrid className="h-3.5 w-3.5" />
+              <LayoutGrid className="h-4 w-4" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      {isLoading ? (
-        <LoadingSkeleton rows={6} />
-      ) : filteredRecords.length === 0 ? (
+      {/* Directory with One-Click IN/OUT */}
+      {filteredInvitees.length === 0 ? (
         <EmptyState
-          title="No reception records found"
-          description="No delegates match this query. Record expected arrivals or check in delegates."
-          actionLabel="Record Arrival"
+          title="No delegates match search"
+          description="Adjust search keywords or presence filters to view delegates."
+          actionLabel="Clear Filters"
           onAction={() => {
-            setRecordToEdit(null);
-            setIsModalOpen(true);
+            setSearchQuery('');
+            setStatusFilter('all');
           }}
         />
       ) : (
         <>
-          {/* Mobile Cards View with One-Click Check-In */}
+          {/* Mobile Cards View */}
           <div
             className={`space-y-3 ${
-              viewMode === 'table'
-                ? 'hidden'
-                : viewMode === 'cards'
-                ? 'block'
-                : 'block md:hidden'
+              viewMode === 'table' ? 'hidden' : viewMode === 'cards' ? 'block' : 'block md:hidden'
             }`}
           >
-            {filteredRecords.map((r) => {
-              const isCheckedIn =
-                r.reception_status === 'Checked In' || r.reception_status === 'Completed';
-
+            {filteredInvitees.map((inv) => {
+              const activeSession = activeSessionMap.get(inv.id);
+              const isInside = Boolean(activeSession);
               return (
                 <MobileDataCard
-                  key={r.id}
-                  title={r.invitee?.full_name || 'Unknown Delegate'}
-                  identifier={r.invitee?.invitee_code}
-                  subtitle={r.reception_point || 'Main Lobby Desk'}
+                  key={inv.id}
+                  title={inv.full_name}
+                  subtitle={`${inv.city}, ${inv.state}`}
                   badge={
-                    <StatusBadge
-                      variant={getStatusVariant(r.reception_status)}
-                      label={r.reception_status}
-                      size="sm"
-                    />
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                        isInside
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-gray-100 text-gray-700 border border-gray-200'
+                      }`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${isInside ? 'bg-emerald-600 animate-pulse' : 'bg-gray-400'}`} />
+                      <span>{isInside ? 'INSIDE' : 'OUTSIDE'}</span>
+                    </span>
                   }
-                  onClick={() => r.invitee && navigate(`/invitees/${r.invitee.id}`)}
+                  onClick={() => navigate(`/invitees/${inv.id}`)}
                   fields={[
                     {
-                      label: 'Expected Arrival',
-                      value: formatDateTime(r.expected_arrival),
-                      icon: Clock,
+                      label: 'Phone',
+                      value: inv.phone,
                     },
                     {
-                      label: 'Actual Arrival',
-                      value: r.actual_arrival ? formatDateTime(r.actual_arrival) : 'Pending arrival',
-                    },
-                    {
-                      label: 'Volunteer Lead',
-                      value: r.assigned_volunteer || 'Help Desk Lead',
-                      icon: User,
-                    },
-                    {
-                      label: 'Welcome Kit',
-                      value: (
-                        <span
-                          className={`font-semibold text-xs ${
-                            r.welcome_kit_status === 'Distributed'
-                              ? 'text-emerald-700'
-                              : 'text-[#69756F]'
-                          }`}
-                        >
-                          {r.welcome_kit_status || 'Pending'}
+                      label: 'Presence Info',
+                      value: isInside ? (
+                        <span className="text-[#164734] font-medium">
+                          In since {formatDateTime(activeSession?.entry_time)}
                         </span>
+                      ) : (
+                        <span className="text-[#69756F]">Gate exit complete</span>
                       ),
-                      icon: Package,
                     },
-                  ]}
-                  expandableFields={[
-                    ...(r.invitee?.phone
-                      ? [
-                          {
-                            label: 'Delegate Contact',
-                            value: r.invitee.phone,
-                          },
-                        ]
-                      : []),
-                    ...(r.remarks ? [{ label: 'Remarks', value: r.remarks }] : []),
                   ]}
                   actions={
-                    <div className="flex items-center gap-2 w-full justify-between pt-1">
-                      {!isCheckedIn ? (
+                    <div className="flex items-center gap-2 w-full">
+                      {isInside ? (
                         <Button
                           size="sm"
-                          className="flex-1 h-9 text-xs bg-emerald-700 hover:bg-emerald-800 text-white font-bold shadow-xs flex items-center justify-center gap-1.5"
-                          onClick={() => handleQuickStatusChange(r, 'Checked In')}
+                          disabled={isActionLoading}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleQuickExit(inv.id, inv.full_name);
+                          }}
+                          className="flex-1 h-8 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white"
                         >
-                          <CheckCircle2 className="h-4 w-4" />
-                          <span>One-Tap Check-In</span>
+                          <LogOut className="h-3.5 w-3.5 mr-1" />
+                          <span>Record OUT</span>
                         </Button>
                       ) : (
-                        <div className="flex-1 flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 py-1.5 px-3 rounded-lg justify-center">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                          <span>Checked In</span>
-                        </div>
+                        <Button
+                          size="sm"
+                          disabled={isActionLoading}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleQuickEntry(inv.id, inv.full_name);
+                          }}
+                          className="flex-1 h-8 text-xs font-semibold bg-[#164734] hover:bg-[#123829] text-white"
+                        >
+                          <LogIn className="h-3.5 w-3.5 mr-1" />
+                          <span>Record IN</span>
+                        </Button>
                       )}
-
                       <Button
                         size="sm"
                         variant="outline"
-                        className="text-xs h-9 px-3"
-                        onClick={() => {
-                          setRecordToEdit(r);
-                          setIsModalOpen(true);
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/invitees/${inv.id}`);
                         }}
-                        title="Edit Details"
+                        className="h-8 text-xs px-2.5"
                       >
-                        <Edit className="h-3.5 w-3.5 text-[#4A5550]" />
+                        <Eye className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   }
@@ -455,133 +457,116 @@ export const ReceptionDashboard: React.FC = () => {
 
           {/* Desktop Table View */}
           <div
-            className={`bg-white rounded-2xl border border-[#E3E7E4] shadow-card-subtle overflow-hidden ${
-              viewMode === 'cards'
-                ? 'hidden'
-                : viewMode === 'table'
-                ? 'block'
-                : 'hidden md:block'
+            className={`bg-white rounded-xl border border-[#E3E7E4] shadow-card-subtle overflow-hidden ${
+              viewMode === 'cards' ? 'hidden' : viewMode === 'table' ? 'block' : 'hidden md:block'
             }`}
           >
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="border-b border-[#E3E7E4] bg-[#FAF9F6] text-[#69756F] font-semibold uppercase tracking-wider text-[11px]">
-                    <th className="py-3 px-4">Delegate</th>
-                    <th className="py-3 px-4">Reception Status</th>
-                    <th className="py-3 px-4">Expected Arrival</th>
-                    <th className="py-3 px-4">Actual Arrival</th>
-                    <th className="py-3 px-4">Assigned Volunteer</th>
-                    <th className="py-3 px-4">Kit & Badge</th>
-                    <th className="py-3 px-4 text-center">Fast Check-In</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+                    <th className="py-3 px-4">Delegate Name</th>
+                    <th className="py-3 px-4">Category</th>
+                    <th className="py-3 px-4">Contact</th>
+                    <th className="py-3 px-4">Current Gate Presence</th>
+                    <th className="py-3 px-4">Recent Movement Time</th>
+                    <th className="py-3 px-4 text-right">Quick Gate Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F4F6F4]">
-                  {filteredRecords.map((r) => {
-                    const isCheckedIn =
-                      r.reception_status === 'Checked In' || r.reception_status === 'Completed';
-
+                  {filteredInvitees.map((inv) => {
+                    const activeSession = activeSessionMap.get(inv.id);
+                    const isInside = Boolean(activeSession);
                     return (
                       <tr
-                        key={r.id}
+                        key={inv.id}
                         className="hover:bg-[#FAF9F6]/80 transition-colors cursor-pointer group"
-                        onClick={() => r.invitee && navigate(`/invitees/${r.invitee.id}`)}
+                        onClick={() => navigate(`/invitees/${inv.id}`)}
                       >
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="font-mono text-[11px] font-bold text-[#164734]">
-                            <span className="bg-[#E8F1EC] px-2 py-0.5 rounded">
-                              {r.invitee?.invitee_code}
-                            </span>
+                        <td className="py-3.5 px-4 font-medium text-[#1A221E]">
+                          <div className="font-semibold text-sm group-hover:text-[#164734] transition-colors">
+                            {inv.full_name}
                           </div>
-                          <div className="font-semibold text-[#1A221E] text-sm mt-1 group-hover:text-[#164734] transition-colors">
-                            {r.invitee?.full_name}
+                          <div className="text-[11px] text-[#69756F]">
+                            {inv.city}, {inv.state}
                           </div>
-                          <a
-                            href={`tel:${r.invitee?.phone}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-[11px] text-[#69756F] hover:underline"
-                          >
-                            {r.invitee?.phone}
-                          </a>
                         </td>
-
                         <td className="py-3.5 px-4 whitespace-nowrap">
                           <StatusBadge
-                            variant={getStatusVariant(r.reception_status)}
-                            label={r.reception_status}
+                            variant={
+                              inv.category === 'Founder Members'
+                                ? 'founder'
+                                : inv.category === 'General Members'
+                                ? 'general'
+                                : 'special'
+                            }
+                            label={inv.category}
                             size="sm"
                           />
                         </td>
-
-                        <td className="py-3.5 px-4 text-[#1A221E] whitespace-nowrap">
-                          {formatDateTime(r.expected_arrival)}
+                        <td className="py-3.5 px-4 text-[#1A221E] whitespace-nowrap font-mono text-[11px]">
+                          {inv.phone}
                         </td>
-
-                        <td className="py-3.5 px-4 text-[#1A221E] whitespace-nowrap">
-                          {formatDateTime(r.actual_arrival)}
-                        </td>
-
-                        <td className="py-3.5 px-4 text-[#1A221E] whitespace-nowrap">
-                          <div className="font-medium">{r.assigned_volunteer || 'Help Desk Lead'}</div>
-                          <div className="text-[11px] text-[#69756F]">{r.reception_point}</div>
-                        </td>
-
                         <td className="py-3.5 px-4 whitespace-nowrap">
                           <span
-                            className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
-                              r.welcome_kit_status === 'Distributed'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                : 'bg-[#FAF9F6] text-[#69756F] border-[#E3E7E4]'
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                              isInside
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-gray-100 text-gray-700 border border-gray-200'
                             }`}
                           >
-                            {r.welcome_kit_status || 'Pending'}
+                            <span
+                              className={`h-2 w-2 rounded-full ${
+                                isInside ? 'bg-emerald-600 animate-pulse' : 'bg-gray-400'
+                              }`}
+                            />
+                            <span>{isInside ? 'INSIDE VENUE' : 'OUTSIDE'}</span>
                           </span>
                         </td>
-
-                        <td
-                          className="py-3.5 px-4 text-center whitespace-nowrap"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {!isCheckedIn ? (
-                            <Button
-                              size="sm"
-                              className="h-8 text-xs px-3 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold shadow-xs"
-                              onClick={() => handleQuickStatusChange(r, 'Checked In')}
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                              <span>Check In</span>
-                            </Button>
-                          ) : (
-                            <span className="text-emerald-700 font-semibold text-xs inline-flex items-center gap-1">
-                              <CheckCircle2 className="h-4 w-4" />
-                              <span>Checked In</span>
+                        <td className="py-3.5 px-4 font-mono text-[11px] text-[#69756F] whitespace-nowrap">
+                          {isInside ? (
+                            <span className="text-[#164734] font-semibold">
+                              IN: {formatDateTime(activeSession?.entry_time)}
                             </span>
+                          ) : (
+                            <span>Exit Logged</span>
                           )}
                         </td>
-
                         <td
-                          className="py-3.5 px-4 text-right whitespace-nowrap space-x-1"
+                          className="py-3.5 px-4 text-right whitespace-nowrap space-x-2"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <button
-                            title="View Complete Profile"
-                            onClick={() => r.invitee && navigate(`/invitees/${r.invitee.id}`)}
-                            className="p-1.5 text-[#69756F] hover:text-[#164734] hover:bg-[#E8F1EC] rounded-lg transition-colors"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
+                          {isInside ? (
+                            <Button
+                              size="sm"
+                              disabled={isActionLoading}
+                              onClick={() => handleQuickExit(inv.id, inv.full_name)}
+                              className="h-7 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white shadow-xs px-3"
+                            >
+                              <LogOut className="h-3 w-3 mr-1" />
+                              <span>Record OUT</span>
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              disabled={isActionLoading}
+                              onClick={() => handleQuickEntry(inv.id, inv.full_name)}
+                              className="h-7 text-xs font-semibold bg-[#164734] hover:bg-[#123829] text-white shadow-xs px-3"
+                            >
+                              <LogIn className="h-3 w-3 mr-1" />
+                              <span>Record IN</span>
+                            </Button>
+                          )}
 
-                          <button
-                            title="Edit Reception Record"
-                            onClick={() => {
-                              setRecordToEdit(r);
-                              setIsModalOpen(true);
-                            }}
-                            className="p-1.5 text-[#69756F] hover:text-[#164734] hover:bg-[#E8F1EC] rounded-lg transition-colors"
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => navigate(`/invitees/${inv.id}`)}
+                            className="h-7 text-xs px-2.5 text-[#164734] hover:bg-[#E8F1EC] border-[#C5DEC8]"
                           >
-                            <Edit className="h-4 w-4" />
-                          </button>
+                            <Eye className="h-3 w-3 mr-1" />
+                            <span>Profile</span>
+                          </Button>
                         </td>
                       </tr>
                     );
@@ -592,22 +577,6 @@ export const ReceptionDashboard: React.FC = () => {
           </div>
         </>
       )}
-
-      {/* Form Modal */}
-      <ReceptionFormModal
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setRecordToEdit(null);
-        }}
-        onSuccess={() => {
-          loadData();
-          toast.success(
-            recordToEdit ? 'Reception status updated.' : 'Arrival recorded successfully.'
-          );
-        }}
-        recordToEdit={recordToEdit}
-      />
     </div>
   );
 };

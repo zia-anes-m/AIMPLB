@@ -45,6 +45,14 @@ body {
   overflow-x: hidden;
 }
 
+.font-arabic {
+  font-family: 'Amiri', 'Noto Naskh Arabic', 'Traditional Arabic', 'Scheherazade New', serif;
+}
+
+.font-urdu {
+  font-family: 'Noto Nastaliq Urdu', serif;
+}
+
 /* Accessible focus visible utility */
 :focus-visible {
   outline: 2px solid #164734;

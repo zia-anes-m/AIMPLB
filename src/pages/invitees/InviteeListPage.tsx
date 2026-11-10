@@ -311,8 +311,7 @@ export const InviteeListPage: React.FC = () => {
               <MobileDataCard
                 key={inv.id}
                 title={inv.full_name}
-                identifier={inv.invitee_code}
-                subtitle={isAdmin ? `${inv.city}, ${inv.state}` : inv.category}
+                subtitle={`${inv.city}, ${inv.state}`}
                 badge={
                   <StatusBadge
                     variant={getCategoryStatusVariant(inv.category)}
@@ -328,55 +327,21 @@ export const InviteeListPage: React.FC = () => {
                       <a
                         href={`tel:${inv.phone}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="text-[#164734] font-semibold hover:underline flex items-center gap-1"
+                        className="text-[#164734] font-semibold hover:underline flex items-center gap-1 font-mono"
                       >
                         <Phone className="h-3 w-3" />
                         <span>{inv.phone}</span>
                       </a>
                     ),
                   },
-                  ...(isAdmin
-                    ? [
-                        {
-                          label: 'Location',
-                          value: (
-                            <span className="flex items-center gap-1 text-[#4A5550]">
-                              <MapPin className="h-3 w-3 text-[#69756F] shrink-0" />
-                              <span className="truncate">{inv.city}, {inv.state}</span>
-                            </span>
-                          ),
-                        },
-                      ]
-                    : []),
-                ]}
-                expandableFields={[
-                  ...(inv.alternate_phone
-                    ? [
-                        {
-                          label: 'Alternate Phone',
-                          value: inv.alternate_phone,
-                        },
-                      ]
-                    : []),
-                  ...(isAdmin && inv.address
-                    ? [
-                        {
-                          label: 'Address',
-                          value: inv.address,
-                        },
-                      ]
-                    : []),
-                  ...(inv.remarks
-                    ? [
-                        {
-                          label: 'Remarks',
-                          value: inv.remarks,
-                        },
-                      ]
-                    : []),
                   {
-                    label: 'Registered On',
-                    value: formatDate(inv.created_at),
+                    label: 'City / State',
+                    value: (
+                      <span className="flex items-center gap-1 text-[#4A5550]">
+                        <MapPin className="h-3 w-3 text-[#69756F] shrink-0" />
+                        <span className="truncate">{inv.city}, {inv.state}</span>
+                      </span>
+                    ),
                   },
                 ]}
                 actions={
@@ -435,12 +400,10 @@ export const InviteeListPage: React.FC = () => {
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="border-b border-[#E3E7E4] bg-[#FAF9F6] text-[#69756F] font-semibold uppercase tracking-wider text-[11px]">
-                    <th className="py-3 px-4">Invitee ID</th>
                     <th className="py-3 px-4">Full Name</th>
                     <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4">Contact</th>
-                    {isAdmin && <th className="py-3 px-4">Location</th>}
-                    <th className="py-3 px-4">Remarks</th>
+                    <th className="py-3 px-4">Primary Phone</th>
+                    <th className="py-3 px-4">City / State</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -451,20 +414,10 @@ export const InviteeListPage: React.FC = () => {
                       className="hover:bg-[#FAF9F6]/80 transition-colors cursor-pointer group"
                       onClick={() => navigate(`/invitees/${inv.id}`)}
                     >
-                      <td className="py-3.5 px-4 font-mono font-bold text-[#164734] whitespace-nowrap">
-                        <span className="bg-[#E8F1EC] px-2 py-0.5 rounded text-[11px]">
-                          {inv.invitee_code}
-                        </span>
-                      </td>
                       <td className="py-3.5 px-4 font-medium text-[#1A221E]">
                         <div className="font-semibold text-sm group-hover:text-[#164734] transition-colors">
                           {inv.full_name}
                         </div>
-                        {isAdmin && inv.address && (
-                          <div className="text-[11px] text-[#69756F] truncate max-w-xs mt-0.5">
-                            {inv.address}
-                          </div>
-                        )}
                       </td>
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <StatusBadge
@@ -477,41 +430,33 @@ export const InviteeListPage: React.FC = () => {
                         <a
                           href={`tel:${inv.phone}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="flex items-center gap-1.5 font-mono text-[12px] hover:text-[#164734] hover:underline"
+                          className="flex items-center gap-1.5 font-mono text-[12px] font-medium hover:text-[#164734] hover:underline"
                         >
                           <Phone className="h-3 w-3 text-[#69756F]" />
                           <span>{inv.phone}</span>
                         </a>
-                        {inv.alternate_phone && (
-                          <div className="text-[10px] text-[#69756F] font-mono mt-0.5">
-                            Alt: {inv.alternate_phone}
-                          </div>
-                        )}
                       </td>
-                      {isAdmin && (
-                        <td className="py-3.5 px-4 text-[#4A5550]">
-                          <div className="flex items-center gap-1.5">
-                            <MapPin className="h-3 w-3 text-[#69756F] shrink-0" />
-                            <span className="truncate max-w-[150px]">
-                              {inv.city}, {inv.state}
-                            </span>
-                          </div>
-                        </td>
-                      )}
-                      <td className="py-3.5 px-4 text-[#69756F] max-w-[180px] truncate">
-                        {inv.remarks || '—'}
+                      <td className="py-3.5 px-4 text-[#4A5550] whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="h-3 w-3 text-[#69756F] shrink-0" />
+                          <span>
+                            {inv.city}, {inv.state}
+                          </span>
+                        </div>
                       </td>
                       <td
                         className="py-3.5 px-4 text-right whitespace-nowrap space-x-1"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <button
-                          title="View Complete Profile"
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => navigate(`/invitees/${inv.id}`)}
-                          className="p-1.5 text-[#69756F] hover:text-[#164734] hover:bg-[#E8F1EC] rounded-lg transition-colors"
+                          className="text-xs h-7 px-2.5 text-[#164734] hover:bg-[#E8F1EC] border-[#C5DEC8]"
                         >
-                          <Eye className="h-4 w-4" />
-                        </button>
+                          <Eye className="h-3.5 w-3.5 mr-1" />
+                          <span>View Profile</span>
+                        </Button>
 
                         <button
                           title="Edit Details"
@@ -521,7 +466,7 @@ export const InviteeListPage: React.FC = () => {
                           }}
                           className="p-1.5 text-[#69756F] hover:text-[#164734] hover:bg-[#E8F1EC] rounded-lg transition-colors"
                         >
-                          <Edit className="h-4 w-4" />
+                          <Edit className="h-3.5 w-3.5" />
                         </button>
 
                         {isAdmin && (
@@ -530,7 +475,7 @@ export const InviteeListPage: React.FC = () => {
                             onClick={() => setInviteeToDelete(inv)}
                             className="p-1.5 text-[#69756F] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         )}
                       </td>

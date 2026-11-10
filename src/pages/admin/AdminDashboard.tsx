@@ -177,31 +177,31 @@ export const AdminDashboard: React.FC = () => {
         subtitle="Executive control panel for AIMPLB 30th Annual Session operations & volunteer governance"
         badge="Live Session"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate('/admin/reports')}
-              className="flex items-center gap-1.5"
+              className="flex items-center gap-1.5 flex-1 sm:flex-initial h-9 sm:h-8"
             >
               <FileSpreadsheet className="h-3.5 w-3.5" />
-              <span className="hidden xs:inline">Generate Reports</span>
+              <span>Reports</span>
             </Button>
 
             <Button
               size="sm"
               onClick={() => navigate('/invitees')}
-              className="flex items-center gap-1.5 bg-[#164734] hover:bg-[#113829] text-white shadow-sm"
+              className="flex items-center gap-1.5 flex-1 sm:flex-initial h-9 sm:h-8 bg-[#164734] hover:bg-[#113829] text-white shadow-sm"
             >
               <Users className="h-3.5 w-3.5" />
-              <span>Manage All Invitees</span>
+              <span>Manage Invitees</span>
             </Button>
           </div>
         }
       />
 
       {/* Primary Category Overview Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         <StatCard
           title="Total Registered"
           value={metrics.total}
@@ -231,11 +231,11 @@ export const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Operational Progress Across All 5 Departments */}
-      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-[#E3E7E4] shadow-card-subtle">
+      <div className="bg-white p-4 sm:p-6 rounded-2xl border border-[#E3E7E4] shadow-card-subtle">
         <div className="flex items-center justify-between pb-3 border-b border-[#F4F6F4] mb-4">
           <div>
             <h2 className="text-xs font-bold uppercase tracking-wider text-[#164734] flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
+              <TrendingUp className="h-4 w-4 shrink-0" />
               <span>Department Readiness & Coordination Progress</span>
             </h2>
             <p className="text-xs text-[#69756F] mt-0.5">
@@ -249,16 +249,16 @@ export const AdminDashboard: React.FC = () => {
             const Icon = d.icon;
             return (
               <div key={i} className="group">
-                <div className="flex items-center justify-between text-xs mb-1.5">
+                <div className="flex items-center justify-between text-xs mb-1.5 flex-wrap gap-1">
                   <button
                     onClick={() => navigate(d.path)}
-                    className="font-semibold text-[#1A221E] group-hover:text-[#164734] flex items-center gap-2 transition-colors"
+                    className="font-semibold text-[#1A221E] group-hover:text-[#164734] flex items-center gap-2 transition-colors min-h-[36px] text-left"
                   >
-                    <Icon className="h-4 w-4 text-[#164734]" />
+                    <Icon className="h-4 w-4 text-[#164734] shrink-0" />
                     <span>{d.title}</span>
                   </button>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[#69756F]">
+                  <div className="flex items-center gap-2 shrink-0 ml-auto">
+                    <span className="text-[#69756F] text-[11px] sm:text-xs">
                       {d.count} of {d.total}
                     </span>
                     <span className="font-mono font-bold text-xs text-[#164734] bg-[#E8F1EC] px-2 py-0.5 rounded-md">

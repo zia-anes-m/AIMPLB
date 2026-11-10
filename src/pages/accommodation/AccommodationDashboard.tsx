@@ -241,15 +241,15 @@ export const AccommodationDashboard: React.FC = () => {
         subtitle="Coordinate hotel rooms, Hajj House residential quarters, check-in schedules, and room allotments"
         badge={`${records.length} Rooms Allocated`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <Button
               variant="outline"
               size="sm"
               onClick={handleExportCSV}
-              className="flex items-center gap-1.5"
+              className="flex items-center gap-1.5 flex-1 sm:flex-initial h-9 sm:h-8"
             >
               <Download className="h-3.5 w-3.5" />
-              <span className="hidden xs:inline">Export CSV</span>
+              <span>Export CSV</span>
             </Button>
 
             <Button
@@ -258,7 +258,7 @@ export const AccommodationDashboard: React.FC = () => {
                 setRecordToEdit(null);
                 setIsModalOpen(true);
               }}
-              className="flex items-center gap-1.5 bg-[#164734] hover:bg-[#113829] text-white shadow-sm"
+              className="flex items-center gap-1.5 flex-1 sm:flex-initial h-9 sm:h-8 bg-[#164734] hover:bg-[#113829] text-white shadow-sm"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Allocate Room</span>
@@ -268,7 +268,7 @@ export const AccommodationDashboard: React.FC = () => {
       />
 
       {/* Real Computed Statistical Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5 sm:gap-3">
         <StatCard
           title="Total Invitees"
           value={stats.totalInvitees}
@@ -552,11 +552,11 @@ export const AccommodationDashboard: React.FC = () => {
                     ...(r.remarks ? [{ label: 'Special Instructions', value: r.remarks }] : []),
                   ]}
                   actions={
-                    <div className="flex items-center gap-1.5 w-full justify-between">
+                    <div className="flex items-center gap-2 w-full">
                       <Button
                         size="sm"
                         variant="outline"
-                        className="text-xs h-8 flex-1"
+                        className="text-xs h-9 sm:h-8 flex-1 font-semibold"
                         onClick={() => r.invitee && navigate(`/invitees/${r.invitee.id}`)}
                       >
                         <Eye className="h-3.5 w-3.5 mr-1 text-[#164734]" />
@@ -566,12 +566,13 @@ export const AccommodationDashboard: React.FC = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="text-xs h-8 px-2.5"
+                        className="text-xs h-9 w-9 p-0 sm:h-8 sm:w-8 shrink-0 flex items-center justify-center"
                         onClick={() => {
                           setRecordToEdit(r);
                           setIsModalOpen(true);
                         }}
                         title="Edit Room"
+                        aria-label="Edit Room"
                       >
                         <Edit className="h-3.5 w-3.5 text-[#4A5550]" />
                       </Button>
@@ -579,9 +580,10 @@ export const AccommodationDashboard: React.FC = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="text-xs h-8 px-2.5 text-red-600 hover:bg-red-50 hover:border-red-200"
+                        className="text-xs h-9 w-9 p-0 sm:h-8 sm:w-8 shrink-0 flex items-center justify-center text-red-600 hover:bg-red-50 hover:border-red-200"
                         onClick={() => setRecordToDelete(r)}
                         title="Delete Room"
+                        aria-label="Delete Room"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>

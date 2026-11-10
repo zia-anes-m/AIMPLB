@@ -311,25 +311,25 @@ export const VolunteerManagement: React.FC = () => {
                   },
                 ]}
                 actions={
-                  <div className="flex items-center gap-2 w-full justify-end pt-1">
+                  <div className="flex items-center gap-2 w-full pt-1">
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-xs h-8"
+                      className="text-xs h-9 sm:h-8 flex-1 font-semibold"
                       onClick={() => {
                         setSelectedProfile(p);
                         setError(null);
                         setIsResetOpen(true);
                       }}
                     >
-                      <KeyRound className="h-3 w-3 mr-1 text-[#69756F]" />
+                      <KeyRound className="h-3.5 w-3.5 mr-1 text-[#69756F]" />
                       <span>Reset Password</span>
                     </Button>
 
                     <Button
                       size="sm"
                       variant="outline"
-                      className={`text-xs h-8 ${
+                      className={`text-xs h-9 sm:h-8 flex-1 font-semibold ${
                         p.is_active
                           ? 'text-red-700 hover:bg-red-50 hover:border-red-200'
                           : 'text-emerald-800 hover:bg-emerald-50 hover:border-emerald-200'
@@ -338,12 +338,12 @@ export const VolunteerManagement: React.FC = () => {
                     >
                       {p.is_active ? (
                         <>
-                          <UserX className="h-3 w-3 mr-1" />
+                          <UserX className="h-3.5 w-3.5 mr-1" />
                           <span>Disable</span>
                         </>
                       ) : (
                         <>
-                          <UserCheck className="h-3 w-3 mr-1" />
+                          <UserCheck className="h-3.5 w-3.5 mr-1" />
                           <span>Activate</span>
                         </>
                       )}
@@ -538,17 +538,18 @@ export const VolunteerManagement: React.FC = () => {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-[#F4F6F4] flex justify-end gap-2.5">
+          <div className="pt-4 border-t border-[#F4F6F4] flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-2.5">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => setIsCreateOpen(false)}
               disabled={isSubmitting}
+              className="w-full sm:w-auto h-10 sm:h-9"
             >
               Cancel
             </Button>
-            <Button type="submit" size="sm" isLoading={isSubmitting} className="bg-[#164734] hover:bg-[#113829] text-white">
+            <Button type="submit" size="sm" isLoading={isSubmitting} className="bg-[#164734] hover:bg-[#113829] text-white w-full sm:w-auto h-10 sm:h-9 font-semibold">
               Create Account
             </Button>
           </div>
@@ -581,17 +582,18 @@ export const VolunteerManagement: React.FC = () => {
             onChange={(e) => setNewPassword(e.target.value)}
           />
 
-          <div className="pt-4 border-t border-[#F4F6F4] flex justify-end gap-2.5">
+          <div className="pt-4 border-t border-[#F4F6F4] flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-2.5">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => setIsResetOpen(false)}
               disabled={isSubmitting}
+              className="w-full sm:w-auto h-10 sm:h-9"
             >
               Cancel
             </Button>
-            <Button type="submit" size="sm" isLoading={isSubmitting} className="bg-[#164734] hover:bg-[#113829] text-white">
+            <Button type="submit" size="sm" isLoading={isSubmitting} className="bg-[#164734] hover:bg-[#113829] text-white w-full sm:w-auto h-10 sm:h-9 font-semibold">
               Update Password
             </Button>
           </div>

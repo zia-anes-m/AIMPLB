@@ -301,15 +301,15 @@ export const MeetingHallDashboard: React.FC = () => {
         title="Meeting Halls & Delegate Movement Management"
         subtitle="Designated hall seating, delegate movements across sessions, and room master governance."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <Button
               variant="outline"
               size="sm"
               onClick={handleExportCSV}
-              className="flex items-center gap-1.5 h-9 text-xs"
+              className="flex items-center gap-1.5 h-9 sm:h-8 text-xs flex-1 sm:flex-initial"
             >
               <Download className="h-3.5 w-3.5" />
-              <span className="hidden xs:inline">Export Seating</span>
+              <span>Export</span>
             </Button>
 
             {activeTab === 'seating' && (
@@ -319,7 +319,7 @@ export const MeetingHallDashboard: React.FC = () => {
                   setRecordToEdit(null);
                   setIsModalOpen(true);
                 }}
-                className="flex items-center gap-1.5 bg-[#164734] hover:bg-[#113829] text-white shadow-xs h-9 text-xs"
+                className="flex items-center gap-1.5 bg-[#164734] hover:bg-[#113829] text-white shadow-xs h-9 sm:h-8 text-xs flex-1 sm:flex-initial"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span>Assign Seat</span>
@@ -330,10 +330,10 @@ export const MeetingHallDashboard: React.FC = () => {
               <Button
                 size="sm"
                 onClick={() => setIsMovementModalOpen(true)}
-                className="flex items-center gap-1.5 bg-[#164734] hover:bg-[#113829] text-white shadow-xs h-9 text-xs"
+                className="flex items-center gap-1.5 bg-[#164734] hover:bg-[#113829] text-white shadow-xs h-9 sm:h-8 text-xs flex-1 sm:flex-initial"
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>Record Room Check-In</span>
+                <span>Record Check-In</span>
               </Button>
             )}
 
@@ -341,7 +341,7 @@ export const MeetingHallDashboard: React.FC = () => {
               <Button
                 size="sm"
                 onClick={() => setIsNewRoomOpen(true)}
-                className="flex items-center gap-1.5 bg-[#164734] hover:bg-[#113829] text-white shadow-xs h-9 text-xs"
+                className="flex items-center gap-1.5 bg-[#164734] hover:bg-[#113829] text-white shadow-xs h-9 sm:h-8 text-xs flex-1 sm:flex-initial"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span>Add Room</span>
@@ -352,10 +352,10 @@ export const MeetingHallDashboard: React.FC = () => {
       />
 
       {/* Primary Tab Switcher */}
-      <div className="flex items-center gap-2 border-b border-[#E3E7E4] pb-2 text-xs font-semibold">
+      <div className="flex items-center gap-1.5 border-b border-[#E3E7E4] pb-2 text-xs font-semibold overflow-x-auto scrollbar-none -mx-3.5 px-3.5 sm:mx-0 sm:px-0">
         <button
           onClick={() => setActiveTab('seating')}
-          className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
+          className={`px-3.5 py-2 min-h-[40px] rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'seating'
               ? 'bg-[#164734] text-white shadow-xs'
               : 'text-[#69756F] hover:bg-[#E8F1EC] hover:text-[#164734]'
@@ -367,14 +367,14 @@ export const MeetingHallDashboard: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('movements')}
-          className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
+          className={`px-3.5 py-2 min-h-[40px] rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'movements'
               ? 'bg-[#164734] text-white shadow-xs'
               : 'text-[#69756F] hover:bg-[#E8F1EC] hover:text-[#164734]'
           }`}
         >
           <DoorOpen className="h-4 w-4" />
-          <span>Delegate Room Movements ({movements.length})</span>
+          <span>Delegate Movements ({movements.length})</span>
           {stats.activeInRoomCount > 0 && (
             <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.2 rounded-full font-bold">
               {stats.activeInRoomCount} Active
@@ -384,14 +384,14 @@ export const MeetingHallDashboard: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('rooms')}
-          className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
+          className={`px-3.5 py-2 min-h-[40px] rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'rooms'
               ? 'bg-[#164734] text-white shadow-xs'
               : 'text-[#69756F] hover:bg-[#E8F1EC] hover:text-[#164734]'
           }`}
         >
           <Settings className="h-4 w-4" />
-          <span>Meeting Rooms Master ({rooms.length})</span>
+          <span>Rooms Master ({rooms.length})</span>
         </button>
       </div>
 
@@ -906,35 +906,35 @@ export const MeetingHallDashboard: React.FC = () => {
 
       {/* Add New Room Modal */}
       {isNewRoomOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 border border-[#E3E7E4] shadow-xl space-y-4">
-            <h3 className="text-base font-bold text-[#1A221E]">Add New Meeting Room</h3>
-            <div className="space-y-3 text-xs">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-4 sm:p-6 border border-[#E3E7E4] shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-base sm:text-lg font-bold text-[#1A221E]">Add New Meeting Room</h3>
+            <div className="space-y-3.5 text-xs">
               <div>
-                <label className="block font-semibold text-[#1A221E] mb-1">Room Name</label>
+                <label className="block font-semibold text-[#1A221E] mb-1.5">Room Name</label>
                 <input
                   type="text"
                   value={newRoomName}
                   onChange={(e) => setNewRoomName(e.target.value)}
                   placeholder="e.g. Media Committee Hall"
-                  className="w-full h-9 rounded-lg border border-[#E3E7E4] px-3 text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20"
+                  className="w-full h-10 rounded-lg border border-[#E3E7E4] px-3 text-sm text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-[#1A221E] mb-1">Capacity</label>
+                <label className="block font-semibold text-[#1A221E] mb-1.5">Capacity</label>
                 <input
                   type="number"
                   value={newRoomCapacity}
                   onChange={(e) => setNewRoomCapacity(parseInt(e.target.value, 10) || 50)}
-                  className="w-full h-9 rounded-lg border border-[#E3E7E4] px-3 text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20"
+                  className="w-full h-10 rounded-lg border border-[#E3E7E4] px-3 text-sm text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20"
                 />
               </div>
             </div>
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#F4F6F4]">
-              <Button variant="outline" size="sm" onClick={() => setIsNewRoomOpen(false)} className="h-8 text-xs">
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 pt-3 border-t border-[#F4F6F4]">
+              <Button variant="outline" size="sm" onClick={() => setIsNewRoomOpen(false)} className="w-full sm:w-auto h-10 sm:h-9 text-xs">
                 Cancel
               </Button>
-              <Button size="sm" onClick={handleCreateRoom} className="h-8 text-xs bg-[#164734] hover:bg-[#123829] text-white">
+              <Button size="sm" onClick={handleCreateRoom} className="w-full sm:w-auto h-10 sm:h-9 text-xs bg-[#164734] hover:bg-[#123829] text-white">
                 Create Room
               </Button>
             </div>
@@ -944,23 +944,23 @@ export const MeetingHallDashboard: React.FC = () => {
 
       {/* Rename Room Modal */}
       {editingRoom && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 border border-[#E3E7E4] shadow-xl space-y-4">
-            <h3 className="text-base font-bold text-[#1A221E]">Rename Room</h3>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-4 sm:p-6 border border-[#E3E7E4] shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-base sm:text-lg font-bold text-[#1A221E]">Rename Room</h3>
             <div className="text-xs">
-              <label className="block font-semibold text-[#1A221E] mb-1">Room Name</label>
+              <label className="block font-semibold text-[#1A221E] mb-1.5">Room Name</label>
               <input
                 type="text"
                 value={editingRoomName}
                 onChange={(e) => setEditingRoomName(e.target.value)}
-                className="w-full h-9 rounded-lg border border-[#E3E7E4] px-3 text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20"
+                className="w-full h-10 rounded-lg border border-[#E3E7E4] px-3 text-sm text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20"
               />
             </div>
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#F4F6F4]">
-              <Button variant="outline" size="sm" onClick={() => setEditingRoom(null)} className="h-8 text-xs">
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 pt-3 border-t border-[#F4F6F4]">
+              <Button variant="outline" size="sm" onClick={() => setEditingRoom(null)} className="w-full sm:w-auto h-10 sm:h-9 text-xs">
                 Cancel
               </Button>
-              <Button size="sm" onClick={handleUpdateRoomName} className="h-8 text-xs bg-[#164734] hover:bg-[#123829] text-white">
+              <Button size="sm" onClick={handleUpdateRoomName} className="w-full sm:w-auto h-10 sm:h-9 text-xs bg-[#164734] hover:bg-[#123829] text-white">
                 Save Changes
               </Button>
             </div>
@@ -970,16 +970,16 @@ export const MeetingHallDashboard: React.FC = () => {
 
       {/* Record Delegate Room Check-In Modal */}
       {isMovementModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 border border-[#E3E7E4] shadow-xl space-y-4">
-            <h3 className="text-base font-bold text-[#1A221E]">Record Room Check-In</h3>
-            <div className="space-y-3 text-xs">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-4 sm:p-6 border border-[#E3E7E4] shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-base sm:text-lg font-bold text-[#1A221E]">Record Room Check-In</h3>
+            <div className="space-y-3.5 text-xs">
               <div>
-                <label className="block font-semibold text-[#1A221E] mb-1">Select Delegate</label>
+                <label className="block font-semibold text-[#1A221E] mb-1.5">Select Delegate</label>
                 <select
                   value={movementInviteeId}
                   onChange={(e) => setMovementInviteeId(e.target.value)}
-                  className="w-full h-9 rounded-lg border border-[#E3E7E4] px-3 bg-white text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20"
+                  className="w-full h-10 rounded-lg border border-[#E3E7E4] px-3 bg-white text-sm text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20"
                 >
                   <option value="">Choose a delegate...</option>
                   {invitees.map((inv) => (
@@ -991,11 +991,11 @@ export const MeetingHallDashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-[#1A221E] mb-1">Select Room</label>
+                <label className="block font-semibold text-[#1A221E] mb-1.5">Select Room</label>
                 <select
                   value={movementRoomName}
                   onChange={(e) => setMovementRoomName(e.target.value)}
-                  className="w-full h-9 rounded-lg border border-[#E3E7E4] px-3 bg-white text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20"
+                  className="w-full h-10 rounded-lg border border-[#E3E7E4] px-3 bg-white text-sm text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20"
                 >
                   {rooms.filter((r) => r.is_active).map((r) => (
                     <option key={r.id} value={r.name}>
@@ -1006,25 +1006,25 @@ export const MeetingHallDashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-[#1A221E] mb-1">Session Name</label>
+                <label className="block font-semibold text-[#1A221E] mb-1.5">Session Name</label>
                 <input
                   type="text"
                   value={movementSessionName}
                   onChange={(e) => setMovementSessionName(e.target.value)}
                   placeholder="e.g. Inaugural Session or Working Council"
-                  className="w-full h-9 rounded-lg border border-[#E3E7E4] px-3 text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20"
+                  className="w-full h-10 rounded-lg border border-[#E3E7E4] px-3 text-sm text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20"
                 />
               </div>
             </div>
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#F4F6F4]">
-              <Button variant="outline" size="sm" onClick={() => setIsMovementModalOpen(false)} className="h-8 text-xs">
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 pt-3 border-t border-[#F4F6F4]">
+              <Button variant="outline" size="sm" onClick={() => setIsMovementModalOpen(false)} className="w-full sm:w-auto h-10 sm:h-9 text-xs">
                 Cancel
               </Button>
               <Button
                 size="sm"
                 disabled={!movementInviteeId}
                 onClick={handleRecordMovement}
-                className="h-8 text-xs bg-[#164734] hover:bg-[#123829] text-white"
+                className="w-full sm:w-auto h-10 sm:h-9 text-xs bg-[#164734] hover:bg-[#123829] text-white"
               >
                 Record Entry
               </Button>

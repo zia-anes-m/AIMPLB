@@ -95,8 +95,27 @@ body {
   }
 }
 
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-left {
+  animation: slideInLeft 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Touch target accessibility utility (min 44x44px clickable area) */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
 }
 
 @media (prefers-reduced-motion: reduce) {

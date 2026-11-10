@@ -8,6 +8,23 @@ export const AppLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
+  // Close mobile drawer on Escape key
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && mobileMenuOpen) {
+        setMobileMenuOpen(false);
+      }
+    };
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [mobileMenuOpen]);
+
   return (
     <div className="flex h-screen bg-[#FAF9F6] overflow-hidden text-[#1A221E]">
       {/* Desktop Sidebar */}
@@ -31,8 +48,8 @@ export const AppLayout: React.FC = () => {
             onClick={() => setMobileMenuOpen(false)}
             aria-hidden="true"
           />
-          {/* Slide-out Drawer */}
-          <div className="relative z-10 h-full animate-fade-in shadow-2xl">
+          {/* Slide-out Drawer with smooth left slide animation */}
+          <div className="relative z-10 h-full animate-slide-left shadow-2xl">
             <Sidebar
               isMobile
               onCloseMobile={() => setMobileMenuOpen(false)}

@@ -310,27 +310,27 @@ export const InviteeDetailPage: React.FC = () => {
           <span>Back to Centralized Invitees</span>
         </button>
 
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-[#E3E7E4] shadow-card-subtle flex flex-col md:flex-row md:items-center md:justify-between gap-5">
-          <div className="flex items-start gap-4">
-            <div className="h-14 w-14 rounded-2xl bg-[#164734] text-white flex items-center justify-center font-bold text-xl shrink-0 shadow-md border-2 border-white">
+        <div className="bg-white p-4 sm:p-6 rounded-2xl border border-[#E3E7E4] shadow-card-subtle flex flex-col md:flex-row md:items-center md:justify-between gap-4 sm:gap-5">
+          <div className="flex items-start gap-3.5 sm:gap-4">
+            <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-[#164734] text-white flex items-center justify-center font-bold text-lg sm:text-xl shrink-0 shadow-md border-2 border-white">
               {invitee.full_name.charAt(0)}
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap mb-1">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap mb-1">
                 <button
                   onClick={copyInviteeCode}
                   title="Click to copy code"
-                  className="font-mono text-xs font-bold text-[#164734] bg-[#E8F1EC] hover:bg-[#d8e8de] px-2.5 py-0.5 rounded-md flex items-center gap-1 transition-colors"
+                  className="font-mono text-xs font-bold text-[#164734] bg-[#E8F1EC] hover:bg-[#d8e8de] px-2.5 py-1 rounded-md flex items-center gap-1 transition-colors min-h-[32px]"
                 >
                   <span>{invitee.invitee_code}</span>
                   {copiedId ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3 text-[#69756F]" />}
                 </button>
                 <StatusBadge variant={categoryVariant} label={invitee.category} size="sm" />
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold text-[#1A221E] tracking-tight">
+              <h1 className="text-lg sm:text-2xl font-bold text-[#1A221E] tracking-tight leading-tight">
                 {invitee.full_name}
               </h1>
-              <div className="flex flex-wrap items-center gap-3 text-xs text-[#69756F] mt-1.5">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-[#69756F] mt-1.5">
                 <a
                   href={`tel:${invitee.phone}`}
                   className="flex items-center gap-1 font-mono hover:text-[#164734] hover:underline"
@@ -338,26 +338,26 @@ export const InviteeDetailPage: React.FC = () => {
                   <Phone className="h-3 w-3 text-[#164734]" />
                   <span>{invitee.phone}</span>
                 </a>
-                <span>•</span>
+                <span className="hidden xs:inline">•</span>
                 <span className="flex items-center gap-1">
                   <MapPin className="h-3 w-3 text-[#164734]" />
                   <span>{invitee.city}, {invitee.state}</span>
                 </span>
-                <span>•</span>
-                <span className="text-[11px] text-[#69756F]">
+                <span className="hidden sm:inline">•</span>
+                <span className="text-[11px] text-[#69756F] hidden sm:inline">
                   Registered {formatDate(invitee.created_at)}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-start md:self-center">
+          <div className="flex items-center gap-2 w-full md:w-auto">
             {canEditBasic && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setIsEditBasicOpen(true)}
-                className="flex items-center gap-1.5 border-[#E3E7E4] hover:bg-[#FAF9F6]"
+                className="flex items-center justify-center gap-1.5 border-[#E3E7E4] hover:bg-[#FAF9F6] w-full md:w-auto h-9 sm:h-8 font-semibold"
               >
                 <Edit className="h-3.5 w-3.5 text-[#164734]" />
                 <span>Edit Basic Details</span>
@@ -368,10 +368,10 @@ export const InviteeDetailPage: React.FC = () => {
       </div>
 
       {/* Profile Section Navigation Tabs (Responsive scrollable horizontal bar) */}
-      <div className="flex items-center overflow-x-auto border-b border-[#E3E7E4] gap-1 pb-1 scrollbar-none text-xs font-medium">
+      <div className="flex items-center overflow-x-auto border-b border-[#E3E7E4] gap-1.5 pb-1.5 scrollbar-none text-xs font-medium -mx-3.5 px-3.5 sm:mx-0 sm:px-0">
         <button
           onClick={() => setActiveTab('all')}
-          className={`px-3.5 py-2 rounded-lg transition-all shrink-0 flex items-center gap-1.5 ${
+          className={`px-3.5 py-2 min-h-[40px] rounded-lg transition-all shrink-0 flex items-center gap-1.5 whitespace-nowrap ${
             activeTab === 'all'
               ? 'bg-[#164734] text-white font-semibold shadow-xs'
               : 'text-[#69756F] hover:bg-[#E8F1EC] hover:text-[#164734]'
@@ -383,7 +383,7 @@ export const InviteeDetailPage: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('transport')}
-          className={`px-3.5 py-2 rounded-lg transition-all shrink-0 flex items-center gap-1.5 ${
+          className={`px-3.5 py-2 min-h-[40px] rounded-lg transition-all shrink-0 flex items-center gap-1.5 whitespace-nowrap ${
             activeTab === 'transport'
               ? 'bg-[#164734] text-white font-semibold shadow-xs'
               : 'text-[#69756F] hover:bg-[#E8F1EC] hover:text-[#164734]'
@@ -417,7 +417,7 @@ export const InviteeDetailPage: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('food')}
-          className={`px-3.5 py-2 rounded-lg transition-all shrink-0 flex items-center gap-1.5 ${
+          className={`px-3.5 py-2 min-h-[40px] rounded-lg transition-all shrink-0 flex items-center gap-1.5 whitespace-nowrap ${
             activeTab === 'food'
               ? 'bg-[#164734] text-white font-semibold shadow-xs'
               : 'text-[#69756F] hover:bg-[#E8F1EC] hover:text-[#164734]'
@@ -434,7 +434,7 @@ export const InviteeDetailPage: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('reception')}
-          className={`px-3.5 py-2 rounded-lg transition-all shrink-0 flex items-center gap-1.5 ${
+          className={`px-3.5 py-2 min-h-[40px] rounded-lg transition-all shrink-0 flex items-center gap-1.5 whitespace-nowrap ${
             activeTab === 'reception'
               ? 'bg-[#164734] text-white font-semibold shadow-xs'
               : 'text-[#69756F] hover:bg-[#E8F1EC] hover:text-[#164734]'
@@ -453,7 +453,7 @@ export const InviteeDetailPage: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('seating')}
-          className={`px-3.5 py-2 rounded-lg transition-all shrink-0 flex items-center gap-1.5 ${
+          className={`px-3.5 py-2 min-h-[40px] rounded-lg transition-all shrink-0 flex items-center gap-1.5 whitespace-nowrap ${
             activeTab === 'seating'
               ? 'bg-[#164734] text-white font-semibold shadow-xs'
               : 'text-[#69756F] hover:bg-[#E8F1EC] hover:text-[#164734]'
@@ -474,7 +474,7 @@ export const InviteeDetailPage: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('history')}
-          className={`px-3.5 py-2 rounded-lg transition-all shrink-0 flex items-center gap-1.5 ${
+          className={`px-3.5 py-2 min-h-[40px] rounded-lg transition-all shrink-0 flex items-center gap-1.5 whitespace-nowrap ${
             activeTab === 'history'
               ? 'bg-[#164734] text-white font-semibold shadow-xs'
               : 'text-[#69756F] hover:bg-[#E8F1EC] hover:text-[#164734]'
@@ -993,13 +993,13 @@ export const InviteeDetailPage: React.FC = () => {
 
             {/* Quick 1-Click Gate Entry / Exit Actions */}
             {canEditReception && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 {isInsideGate ? (
                   <Button
                     size="sm"
                     disabled={isActionLoading}
                     onClick={() => handleGateExit()}
-                    className="h-8 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
+                    className="h-10 sm:h-8 text-sm sm:text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white shadow-xs w-full sm:w-auto"
                   >
                     <span>Record Gate Exit (OUT)</span>
                   </Button>
@@ -1008,7 +1008,7 @@ export const InviteeDetailPage: React.FC = () => {
                     size="sm"
                     disabled={isActionLoading}
                     onClick={() => handleGateEntry()}
-                    className="h-8 text-xs font-semibold bg-[#164734] hover:bg-[#123829] text-white shadow-xs"
+                    className="h-10 sm:h-8 text-sm sm:text-xs font-semibold bg-[#164734] hover:bg-[#123829] text-white shadow-xs w-full sm:w-auto"
                   >
                     <Check className="h-3.5 w-3.5 mr-1" />
                     <span>Record Gate Entry (IN)</span>
@@ -1132,8 +1132,8 @@ export const InviteeDetailPage: React.FC = () => {
 
       {/* 6. MEETING HALL & SEATING / ROOM MOVEMENTS */}
       {(activeTab === 'all' || activeTab === 'seating') && (
-        <div className="bg-white rounded-2xl border border-[#E3E7E4] p-5 sm:p-6 shadow-card-subtle space-y-5">
-          <div className="flex items-center justify-between pb-3 border-b border-[#F4F6F4]">
+        <div className="bg-white rounded-2xl border border-[#E3E7E4] p-4 sm:p-6 shadow-card-subtle space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-[#F4F6F4] gap-3">
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded-lg bg-[#E8F1EC] text-[#164734]">
                 <Armchair className="h-4 w-4" />
@@ -1148,12 +1148,12 @@ export const InviteeDetailPage: React.FC = () => {
               </div>
             </div>
             {canEditHall && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => setIsHallModalOpen(true)}
-                  className="h-8 text-xs text-[#164734] border-[#164734]/30 hover:bg-[#E8F1EC]"
+                  className="h-10 sm:h-8 text-xs text-[#164734] border-[#164734]/30 hover:bg-[#E8F1EC] flex-1 sm:flex-initial"
                 >
                   <Edit className="h-3.5 w-3.5 mr-1" />
                   <span>{meetingHall ? 'Change Seat' : 'Assign Seat'}</span>
@@ -1163,7 +1163,7 @@ export const InviteeDetailPage: React.FC = () => {
                     size="sm"
                     disabled={isActionLoading}
                     onClick={() => activeMeetingSession && handleMeetingExitAction(activeMeetingSession.id)}
-                    className="h-8 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white"
+                    className="h-10 sm:h-8 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white flex-1 sm:flex-initial"
                   >
                     <span>Exit Room</span>
                   </Button>
@@ -1171,7 +1171,7 @@ export const InviteeDetailPage: React.FC = () => {
                   <Button
                     size="sm"
                     onClick={() => setIsMeetingEntryOpen(true)}
-                    className="h-8 text-xs font-semibold bg-[#164734] hover:bg-[#123829] text-white"
+                    className="h-10 sm:h-8 text-xs font-semibold bg-[#164734] hover:bg-[#123829] text-white flex-1 sm:flex-initial"
                   >
                     <Plus className="h-3.5 w-3.5 mr-1" />
                     <span>Check Into Room</span>
@@ -1416,22 +1416,22 @@ export const InviteeDetailPage: React.FC = () => {
 
       {/* Check In to Meeting Room Modal */}
       {isMeetingEntryOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 border border-[#E3E7E4] shadow-xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-4 sm:p-6 border border-[#E3E7E4] shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div>
-              <h3 className="text-base font-bold text-[#1A221E]">Check In to Meeting Room</h3>
+              <h3 className="text-base sm:text-lg font-bold text-[#1A221E]">Check In to Meeting Room</h3>
               <p className="text-xs text-[#69756F] mt-0.5">
                 Record {invitee.full_name} entering a session room.
               </p>
             </div>
 
-            <div className="space-y-3 text-xs">
+            <div className="space-y-3.5 text-xs">
               <div>
-                <label className="block font-semibold text-[#1A221E] mb-1">Select Room</label>
+                <label className="block font-semibold text-[#1A221E] mb-1.5">Select Room</label>
                 <select
                   value={selectedRoomName}
                   onChange={(e) => setSelectedRoomName(e.target.value)}
-                  className="w-full h-9 rounded-lg border border-[#E3E7E4] px-3 bg-white text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20"
+                  className="w-full h-10 rounded-lg border border-[#E3E7E4] px-3 bg-white text-sm text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20"
                 >
                   {meetingRooms.length > 0 ? (
                     meetingRooms
@@ -1453,23 +1453,23 @@ export const InviteeDetailPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-[#1A221E] mb-1">Session Name</label>
+                <label className="block font-semibold text-[#1A221E] mb-1.5">Session Name</label>
                 <input
                   type="text"
                   value={sessionNameInput}
                   onChange={(e) => setSessionNameInput(e.target.value)}
                   placeholder="e.g. Inaugural Session or Morning Working Session"
-                  className="w-full h-9 rounded-lg border border-[#E3E7E4] px-3 text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20"
+                  className="w-full h-10 rounded-lg border border-[#E3E7E4] px-3 text-sm text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#F4F6F4]">
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 pt-3 border-t border-[#F4F6F4]">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setIsMeetingEntryOpen(false)}
-                className="h-8 text-xs"
+                className="w-full sm:w-auto h-10 sm:h-9 text-xs"
               >
                 Cancel
               </Button>
@@ -1477,7 +1477,7 @@ export const InviteeDetailPage: React.FC = () => {
                 size="sm"
                 disabled={isActionLoading}
                 onClick={handleMeetingEntrySubmit}
-                className="h-8 text-xs bg-[#164734] hover:bg-[#123829] text-white"
+                className="w-full sm:w-auto h-10 sm:h-9 text-xs bg-[#164734] hover:bg-[#123829] text-white"
               >
                 <span>Confirm Check In</span>
               </Button>

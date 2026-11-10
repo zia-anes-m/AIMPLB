@@ -59,20 +59,20 @@ export const StatCard: React.FC<StatCardProps> = ({
   return (
     <div
       className={cn(
-        'group relative rounded-xl border p-3.5 sm:p-4 shadow-card-subtle transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5 flex flex-col justify-between overflow-hidden',
+        'group relative rounded-xl border p-3 sm:p-4 shadow-card-subtle transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5 flex flex-col justify-between overflow-hidden',
         style.card,
         className
       )}
     >
       <div>
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <span className="text-[11px] font-semibold tracking-wider text-[#69756F] uppercase truncate">
+        <div className="flex items-center justify-between gap-1.5 mb-1.5 sm:mb-2">
+          <span className="text-[10px] sm:text-[11px] font-semibold tracking-wider text-[#69756F] uppercase truncate">
             {title}
           </span>
           {Icon && (
             <div
               className={cn(
-                'p-1.5 rounded-lg shrink-0 transition-transform duration-200 group-hover:scale-105',
+                'p-1 sm:p-1.5 rounded-lg shrink-0 transition-transform duration-200 group-hover:scale-105',
                 style.iconBox
               )}
             >
@@ -81,17 +81,17 @@ export const StatCard: React.FC<StatCardProps> = ({
           )}
         </div>
 
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-baseline gap-1.5 sm:gap-2 flex-wrap">
           <span
             className={cn(
-              'text-xl sm:text-2xl font-bold tracking-tight font-mono',
+              'text-lg sm:text-2xl font-bold tracking-tight font-mono',
               style.value
             )}
           >
             {value}
           </span>
           {badge && (
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100/70 text-emerald-800">
+            <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100/70 text-emerald-800 shrink-0">
               {badge}
             </span>
           )}
@@ -99,7 +99,7 @@ export const StatCard: React.FC<StatCardProps> = ({
       </div>
 
       {subtitle && (
-        <p className="mt-1.5 text-[11px] text-[#69756F] truncate leading-tight">
+        <p className="mt-1.5 text-[10px] sm:text-[11px] text-[#69756F] truncate leading-tight">
           {subtitle}
         </p>
       )}

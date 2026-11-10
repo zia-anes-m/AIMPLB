@@ -91,7 +91,7 @@ export const MobileDataCard: React.FC<MobileDataCardProps> = ({
               e.stopPropagation();
               setIsExpanded(!isExpanded);
             }}
-            className="flex items-center gap-1 text-[11px] font-semibold text-[#164734] hover:underline py-1 w-full justify-between"
+            className="flex items-center gap-1 text-[11px] font-semibold text-[#164734] hover:underline py-1.5 min-h-[38px] w-full justify-between"
           >
             <span>{isExpanded ? 'Hide Details' : 'View More Details'}</span>
             {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}

@@ -418,10 +418,10 @@ export const ReceptionDashboard: React.FC = () => {
                             e.stopPropagation();
                             handleQuickExit(inv.id, inv.full_name);
                           }}
-                          className="flex-1 h-8 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white"
+                          className="flex-1 h-11 sm:h-9 text-xs sm:text-sm font-bold bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white min-h-[44px] shadow-xs"
                         >
-                          <LogOut className="h-3.5 w-3.5 mr-1" />
-                          <span>Record OUT</span>
+                          <LogOut className="h-4 w-4 mr-1.5" />
+                          <span>Record Gate Exit (OUT)</span>
                         </Button>
                       ) : (
                         <Button
@@ -431,10 +431,10 @@ export const ReceptionDashboard: React.FC = () => {
                             e.stopPropagation();
                             handleQuickEntry(inv.id, inv.full_name);
                           }}
-                          className="flex-1 h-8 text-xs font-semibold bg-[#164734] hover:bg-[#123829] text-white"
+                          className="flex-1 h-11 sm:h-9 text-xs sm:text-sm font-bold bg-[#164734] hover:bg-[#123829] active:bg-[#0d281d] text-white min-h-[44px] shadow-xs"
                         >
-                          <LogIn className="h-3.5 w-3.5 mr-1" />
-                          <span>Record IN</span>
+                          <LogIn className="h-4 w-4 mr-1.5" />
+                          <span>Record Gate Entry (IN)</span>
                         </Button>
                       )}
                       <Button
@@ -444,9 +444,11 @@ export const ReceptionDashboard: React.FC = () => {
                           e.stopPropagation();
                           navigate(`/invitees/${inv.id}`);
                         }}
-                        className="h-8 text-xs px-2.5"
+                        className="h-11 w-11 sm:h-9 sm:w-9 p-0 shrink-0 flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
+                        title="View Invitee Profile"
+                        aria-label="View Invitee Profile"
                       >
-                        <Eye className="h-3.5 w-3.5" />
+                        <Eye className="h-4 w-4 text-[#164734]" />
                       </Button>
                     </div>
                   }

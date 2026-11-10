@@ -311,11 +311,11 @@ export const InviteeFormModal: React.FC<InviteeFormModalProps> = ({
           />
         </div>
 
-        <div className="pt-4 border-t border-[#F4F6F4] flex justify-end gap-2.5">
-          <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>
+        <div className="pt-4 border-t border-[#F4F6F4] flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-2.5">
+          <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isSubmitting} className="w-full sm:w-auto h-10 sm:h-9">
             Cancel
           </Button>
-          <Button type="submit" size="sm" isLoading={isSubmitting} className="bg-[#164734] hover:bg-[#113829] text-white">
+          <Button type="submit" size="sm" isLoading={isSubmitting} className="bg-[#164734] hover:bg-[#113829] text-white w-full sm:w-auto h-10 sm:h-9 font-semibold">
             {inviteeToEdit ? 'Save Changes' : 'Register Invitee'}
           </Button>
         </div>

@@ -48,7 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const getItemClass = (isActive: boolean) =>
     cn(
-      'group relative flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 select-none',
+      'group relative flex items-center gap-3 px-3 py-2.5 sm:py-2 min-h-[40px] sm:min-h-[36px] rounded-lg text-xs font-medium transition-all duration-150 select-none',
       isActive
         ? 'bg-[#164734] text-white shadow-xs font-semibold'
         : 'text-[#37433D] hover:bg-[#E8F1EC] hover:text-[#164734]'
@@ -112,11 +112,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {/* Mobile close button */}
+        {/* Mobile close button (Min 44x44px touch target) */}
         {isMobile && (
           <button
             onClick={onCloseMobile}
-            className="p-1.5 text-[#69756F] hover:text-[#1A221E] hover:bg-[#F4F6F4] rounded-lg transition-colors"
+            className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-[#69756F] hover:text-[#1A221E] hover:bg-[#F4F6F4] rounded-lg transition-colors"
             aria-label="Close navigation drawer"
           >
             <X className="h-5 w-5" />
@@ -288,7 +288,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <select
             value={currentUser?.role || ''}
             onChange={(e) => switchRole(e.target.value as UserRole)}
-            className="w-full text-xs bg-white border border-[#E3E7E4] rounded-lg px-2.5 py-1.5 text-[#1A221E] shadow-card-subtle focus:ring-2 focus:ring-[#164734]/20 focus:border-[#164734] outline-none"
+            className="w-full text-xs bg-white border border-[#E3E7E4] rounded-lg px-2.5 py-2 sm:py-1.5 min-h-[40px] sm:min-h-[36px] text-[#1A221E] shadow-card-subtle focus:ring-2 focus:ring-[#164734]/20 focus:border-[#164734] outline-none"
           >
             {demoRoles.map((r) => (
               <option key={r} value={r}>
@@ -319,7 +319,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <button
           onClick={handleLogout}
           title="Sign out"
-          className="p-1.5 text-[#69756F] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+          className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-[#69756F] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
           aria-label="Sign out"
         >
           <LogOut className="h-4 w-4" />

@@ -185,15 +185,15 @@ export const InviteeListPage: React.FC = () => {
         subtitle="Single unified delegate directory accessible to all operational departments"
         badge={`${invitees.length} Delegates`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <Button
               variant="outline"
               size="sm"
               onClick={handleExportCSV}
-              className="flex items-center gap-1.5"
+              className="flex items-center gap-1.5 flex-1 sm:flex-initial h-9 sm:h-8"
             >
               <Download className="h-3.5 w-3.5" />
-              <span className="hidden xs:inline">Export CSV</span>
+              <span>Export CSV</span>
             </Button>
 
             <Button
@@ -202,7 +202,7 @@ export const InviteeListPage: React.FC = () => {
                 setInviteeToEdit(null);
                 setIsFormOpen(true);
               }}
-              className="flex items-center gap-1.5 bg-[#164734] hover:bg-[#113829] text-white shadow-sm"
+              className="flex items-center gap-1.5 flex-1 sm:flex-initial h-9 sm:h-8 bg-[#164734] hover:bg-[#113829] text-white shadow-sm"
             >
               <UserPlus className="h-3.5 w-3.5" />
               <span>Register Invitee</span>
@@ -212,7 +212,7 @@ export const InviteeListPage: React.FC = () => {
       />
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-3.5 rounded-xl border border-[#E3E7E4] shadow-card-subtle flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+      <div className="bg-white p-3.5 rounded-xl border border-[#E3E7E4] shadow-card-subtle flex flex-col md:flex-row gap-2.5 sm:gap-3 items-stretch md:items-center justify-between">
         <SearchInput
           value={searchQuery}
           onChange={setSearchQuery}
@@ -226,7 +226,7 @@ export const InviteeListPage: React.FC = () => {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="h-9 w-full sm:w-auto text-xs rounded-lg border border-[#E3E7E4] bg-white px-3 text-[#1A221E] font-medium focus:outline-none focus:ring-2 focus:ring-[#164734]/20 focus:border-[#164734]"
+              className="h-10 sm:h-9 w-full sm:w-auto text-xs rounded-lg border border-[#E3E7E4] bg-white px-3 text-[#1A221E] font-medium focus:outline-none focus:ring-2 focus:ring-[#164734]/20 focus:border-[#164734]"
             >
               <option value="ALL">All Categories ({invitees.length})</option>
               <option value="Founder Members">Founder Members</option>
@@ -345,11 +345,11 @@ export const InviteeListPage: React.FC = () => {
                   },
                 ]}
                 actions={
-                  <div className="flex items-center gap-1.5 w-full justify-between">
+                  <div className="flex items-center gap-2 w-full">
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-xs h-8 flex-1"
+                      className="text-xs h-9 sm:h-8 flex-1 font-semibold"
                       onClick={() => navigate(`/invitees/${inv.id}`)}
                     >
                       <Eye className="h-3.5 w-3.5 mr-1 text-[#164734]" />
@@ -359,12 +359,13 @@ export const InviteeListPage: React.FC = () => {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-xs h-8 px-2.5"
+                      className="text-xs h-9 w-9 p-0 sm:h-8 sm:w-8 shrink-0 flex items-center justify-center"
                       onClick={() => {
                         setInviteeToEdit(inv);
                         setIsFormOpen(true);
                       }}
                       title="Edit delegate"
+                      aria-label="Edit delegate"
                     >
                       <Edit className="h-3.5 w-3.5 text-[#4A5550]" />
                     </Button>
@@ -373,9 +374,10 @@ export const InviteeListPage: React.FC = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="text-xs h-8 px-2.5 text-red-600 hover:bg-red-50 hover:border-red-200"
+                        className="text-xs h-9 w-9 p-0 sm:h-8 sm:w-8 shrink-0 flex items-center justify-center text-red-600 hover:bg-red-50 hover:border-red-200"
                         onClick={() => setInviteeToDelete(inv)}
                         title="Delete delegate"
+                        aria-label="Delete delegate"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>

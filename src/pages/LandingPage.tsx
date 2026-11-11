@@ -132,7 +132,7 @@ export const LandingPage: React.FC = () => {
             dir="rtl"
             aria-label="Bismillah ir-Rahman ir-Rahim"
           >
-            بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
+            بِسمِ اللّٰهِ الرَّحمٰنِ الرَّحِیم
           </p>
         </div>
 
@@ -369,7 +369,7 @@ export const LandingPage: React.FC = () => {
               <div className="inline-flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5 text-[#164734] shrink-0" />
                 <span>14–16 December 2026</span>
-              <span className="sr-only">14, 15 and 16 December 2026</span>
+                <span className="sr-only">14, 15 and 16 December 2026</span>
                 <span className="sr-only">14, 15 and 16 December 2026</span>
               </div>
               <span className="text-[#9DB0A4] font-bold text-sm">•</span>

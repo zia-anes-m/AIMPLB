@@ -14,6 +14,10 @@ import {
   TrendingUp,
   UserCog,
   History,
+  LogIn,
+  LogOut,
+  QrCode,
+  CreditCard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -27,6 +31,7 @@ import {
   getReceptionRecords,
   getMeetingHallRecords,
   getAuditLogs,
+  getEventAttendanceRecords,
 } from '@/services/api';
 import {
   Invitee,
@@ -36,7 +41,9 @@ import {
   ReceptionRecord,
   MeetingHallRecord,
   AuditLog,
+  EventAttendanceRecord,
 } from '@/types';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { formatDateTime } from '@/lib/utils';
 
 export const AdminDashboard: React.FC = () => {
@@ -49,11 +56,12 @@ export const AdminDashboard: React.FC = () => {
   const [reception, setReception] = useState<ReceptionRecord[]>([]);
   const [halls, setHalls] = useState<MeetingHallRecord[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<EventAttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     try {
-      const [inv, tr, acc, fd, rec, hl, aud] = await Promise.all([
+      const [inv, tr, acc, fd, rec, hl, aud, att] = await Promise.all([
         getInvitees(),
         getTransportationRecords(),
         getAccommodations(),
@@ -61,6 +69,7 @@ export const AdminDashboard: React.FC = () => {
         getReceptionRecords(),
         getMeetingHallRecords(),
         getAuditLogs(),
+        getEventAttendanceRecords(),
       ]);
 
       setInvitees(inv);
@@ -70,6 +79,7 @@ export const AdminDashboard: React.FC = () => {
       setReception(rec);
       setHalls(hl);
       setAuditLogs(aud);
+      setAttendanceRecords(att);
     } catch (err) {
       console.error('Error loading admin overview:', err);
     } finally {
@@ -79,10 +89,73 @@ export const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     loadData();
+
+    // Listen to local app DB updates
     const handleUpdate = () => loadData();
     window.addEventListener('aimplb_db_update', handleUpdate);
-    return () => window.removeEventListener('aimplb_db_update', handleUpdate);
+
+    // Setup 15-second background refresh interval for live occupancy telemetry
+    const interval = setInterval(() => {
+      loadData();
+    }, 15000);
+
+    // Supabase Realtime channel if configured
+    let channel: any = null;
+    if (isSupabaseConfigured) {
+      channel = supabase
+        .channel('admin-occupancy-telemetry')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'event_attendance' },
+          () => {
+            loadData();
+          }
+        )
+        .subscribe();
+    }
+
+    return () => {
+      window.removeEventListener('aimplb_db_update', handleUpdate);
+      clearInterval(interval);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, [loadData]);
+
+  // Compute live event occupancy strictly from valid movement records
+  const occupancyMetrics = useMemo(() => {
+    const totalRegistered = invitees.length;
+
+    // Active inside presence: status === 'IN' and !exit_time
+    const activeInsideMap = new Map<string, EventAttendanceRecord>();
+    for (const r of attendanceRecords) {
+      if (r.status === 'IN' && !r.exit_time && !activeInsideMap.has(r.invitee_id)) {
+        activeInsideMap.set(r.invitee_id, r);
+      }
+    }
+
+    const currentlyInside = activeInsideMap.size;
+    const currentlyOutside = Math.max(0, totalRegistered - currentlyInside);
+
+    // Total unique attendees: distinct invitees who entered at least once
+    const uniqueAttendees = new Set(
+      attendanceRecords.filter((r) => Boolean(r.entry_time)).map((r) => r.invitee_id)
+    ).size;
+
+    // Total venue movements
+    const totalInMovements = attendanceRecords.filter((r) => Boolean(r.entry_time)).length;
+    const totalOutMovements = attendanceRecords.filter((r) => Boolean(r.exit_time)).length;
+
+    return {
+      totalRegistered,
+      currentlyInside,
+      currentlyOutside,
+      uniqueAttendees,
+      totalInMovements,
+      totalOutMovements,
+    };
+  }, [invitees, attendanceRecords]);
 
   // Compute database-derived metrics
   const metrics = useMemo(() => {
@@ -177,12 +250,22 @@ export const AdminDashboard: React.FC = () => {
         subtitle="Executive control panel for AIMPLB 30th Annual Session operations & volunteer governance"
         badge="Live Session"
         actions={
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/admin/id-cards')}
+              className="flex items-center gap-1.5 h-9 sm:h-8 border-[#C5DEC8] text-[#164734] hover:bg-[#E8F1EC]"
+            >
+              <CreditCard className="h-3.5 w-3.5" />
+              <span>ID Badges</span>
+            </Button>
+
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate('/admin/reports')}
-              className="flex items-center gap-1.5 flex-1 sm:flex-initial h-9 sm:h-8"
+              className="flex items-center gap-1.5 h-9 sm:h-8"
             >
               <FileSpreadsheet className="h-3.5 w-3.5" />
               <span>Reports</span>
@@ -191,7 +274,7 @@ export const AdminDashboard: React.FC = () => {
             <Button
               size="sm"
               onClick={() => navigate('/invitees')}
-              className="flex items-center gap-1.5 flex-1 sm:flex-initial h-9 sm:h-8 bg-[#164734] hover:bg-[#113829] text-white shadow-sm"
+              className="flex items-center gap-1.5 h-9 sm:h-8 bg-[#164734] hover:bg-[#113829] text-white shadow-sm"
             >
               <Users className="h-3.5 w-3.5" />
               <span>Manage Invitees</span>
@@ -200,8 +283,93 @@ export const AdminDashboard: React.FC = () => {
         }
       />
 
+      {/* PHASE 4: Live Event Venue Occupancy & Telemetry Dashboard */}
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E3E7E4] shadow-card-subtle space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-[#F4F6F4] gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600"></span>
+              </span>
+              <h2 className="text-xs font-bold uppercase tracking-wider text-[#164734]">
+                Live Event Venue Occupancy & Telemetry
+              </h2>
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                Realtime Active
+              </span>
+            </div>
+            <p className="text-xs text-[#69756F] mt-0.5">
+              Live venue headcounts computed from gate QR scans at Hajj House, Chennai (14–16 Dec 2026).
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => navigate('/reception')}
+              className="h-8 text-xs text-[#164734] border-[#C5DEC8] hover:bg-[#E8F1EC]"
+            >
+              <QrCode className="h-3.5 w-3.5 mr-1" />
+              <span>Gate Scanner</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => navigate('/admin/reports')}
+              className="h-8 text-xs text-[#69756F]"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 mr-1" />
+              <span>Movement Reports</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* 6 Required Telemetry Metric Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
+          <StatCard
+            title="Total Registered"
+            value={occupancyMetrics.totalRegistered}
+            subtitle="All confirmed delegates"
+            icon={Users}
+          />
+          <StatCard
+            title="Currently Inside"
+            value={occupancyMetrics.currentlyInside}
+            subtitle="Verified inside venue"
+            icon={LogIn}
+            variant="success"
+          />
+          <StatCard
+            title="Currently Outside"
+            value={occupancyMetrics.currentlyOutside}
+            subtitle="Pending arrival / outside"
+            icon={LogOut}
+          />
+          <StatCard
+            title="Unique Attendees"
+            value={occupancyMetrics.uniqueAttendees}
+            subtitle="Unique verified attendees"
+            icon={UserCheck}
+            variant="highlight"
+          />
+          <StatCard
+            title="Venue IN Moves"
+            value={occupancyMetrics.totalInMovements}
+            subtitle="Total venue arrivals"
+            icon={LogIn}
+          />
+          <StatCard
+            title="Venue OUT Moves"
+            value={occupancyMetrics.totalOutMovements}
+            subtitle="Total venue departures"
+            icon={LogOut}
+          />
+        </div>
+      </div>
+
       {/* Primary Category Overview Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5">
         <StatCard
           title="Total Registered"
           value={metrics.total}
@@ -279,7 +447,26 @@ export const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Admin Module Shortcuts */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div
+          onClick={() => navigate('/admin/id-cards')}
+          className="p-5 rounded-2xl border border-[#E3E7E4] bg-white hover:border-[#164734]/40 hover:shadow-card-hover transition-all cursor-pointer shadow-card-subtle group"
+        >
+          <div className="p-2.5 rounded-xl bg-[#E8F1EC] text-[#164734] w-fit mb-3 group-hover:scale-105 transition-transform">
+            <CreditCard className="h-5 w-5" />
+          </div>
+          <h3 className="text-sm font-bold text-[#1A221E] group-hover:text-[#164734] transition-colors">
+            ID Badges & QR Passes
+          </h3>
+          <p className="text-xs text-[#69756F] mt-1 leading-relaxed">
+            Generate and bulk-print official AIMPLB delegate ID cards with category IDs and secure QR codes.
+          </p>
+          <div className="mt-3 text-xs font-semibold text-[#164734] flex items-center gap-1">
+            <span>Generate badges</span>
+            <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
+          </div>
+        </div>
+
         <div
           onClick={() => navigate('/admin/volunteers')}
           className="p-5 rounded-2xl border border-[#E3E7E4] bg-white hover:border-[#164734]/40 hover:shadow-card-hover transition-all cursor-pointer shadow-card-subtle group"
@@ -288,7 +475,7 @@ export const AdminDashboard: React.FC = () => {
             <UserCog className="h-5 w-5" />
           </div>
           <h3 className="text-sm font-bold text-[#1A221E] group-hover:text-[#164734] transition-colors">
-            Volunteer Management
+            Volunteer Governance
           </h3>
           <p className="text-xs text-[#69756F] mt-1 leading-relaxed">
             Create volunteer accounts, assign departmental roles, toggle active status, or reset credentials.

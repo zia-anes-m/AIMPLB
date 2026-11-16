@@ -12,15 +12,14 @@ import {
   Settings,
   ShieldCheck,
   UserCog,
+  CreditCard,
   LogOut,
   ChevronLeft,
   ChevronRight,
-  Shield,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils';
-import { UserRole } from '@/types';
 import { Logo } from '@/components/common/Logo';
 
 interface SidebarProps {
@@ -36,7 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
   isMobile = false,
 }) => {
-  const { currentUser, logout, isAdmin, switchRole } = useAuth();
+  const { currentUser, logout, isAdmin } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
@@ -53,15 +52,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ? 'bg-[#164734] text-white shadow-xs font-semibold'
         : 'text-[#37433D] hover:bg-[#E8F1EC] hover:text-[#164734]'
     );
-
-  const demoRoles: UserRole[] = [
-    'Admin',
-    'Transportation Team',
-    'Accommodation Team',
-    'Food Team',
-    'Reception Team',
-    'Meeting Hall Team',
-  ];
 
   const getDashboardRoute = () => {
     if (isAdmin) return '/admin';
@@ -170,61 +160,72 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </NavLink>
 
+        {/* Department Operations */}
         {(!isCollapsed || isMobile) && (
           <div className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#69756F]">
-            Departments
+            {isAdmin ? 'Departments' : 'My Department'}
           </div>
         )}
 
-        <NavLink
-          to="/transportation"
-          className={getItemClass(currentPath.startsWith('/transportation'))}
-          onClick={onCloseMobile}
-          title={isCollapsed ? 'Transportation' : undefined}
-        >
-          <PlaneTakeoff className="h-4 w-4 shrink-0" />
-          {(!isCollapsed || isMobile) && <span className="truncate">Transportation</span>}
-        </NavLink>
+        {(isAdmin || currentUser?.role === 'Transportation Team') && (
+          <NavLink
+            to="/transportation"
+            className={getItemClass(currentPath.startsWith('/transportation'))}
+            onClick={onCloseMobile}
+            title={isCollapsed ? 'Transportation' : undefined}
+          >
+            <PlaneTakeoff className="h-4 w-4 shrink-0" />
+            {(!isCollapsed || isMobile) && <span className="truncate">Transportation</span>}
+          </NavLink>
+        )}
 
-        <NavLink
-          to="/accommodation"
-          className={getItemClass(currentPath.startsWith('/accommodation'))}
-          onClick={onCloseMobile}
-          title={isCollapsed ? 'Accommodation' : undefined}
-        >
-          <Building2 className="h-4 w-4 shrink-0" />
-          {(!isCollapsed || isMobile) && <span className="truncate">Accommodation</span>}
-        </NavLink>
+        {(isAdmin || currentUser?.role === 'Accommodation Team') && (
+          <NavLink
+            to="/accommodation"
+            className={getItemClass(currentPath.startsWith('/accommodation'))}
+            onClick={onCloseMobile}
+            title={isCollapsed ? 'Accommodation' : undefined}
+          >
+            <Building2 className="h-4 w-4 shrink-0" />
+            {(!isCollapsed || isMobile) && <span className="truncate">Accommodation</span>}
+          </NavLink>
+        )}
 
-        <NavLink
-          to="/food"
-          className={getItemClass(currentPath.startsWith('/food'))}
-          onClick={onCloseMobile}
-          title={isCollapsed ? 'Food & Catering' : undefined}
-        >
-          <UtensilsCrossed className="h-4 w-4 shrink-0" />
-          {(!isCollapsed || isMobile) && <span className="truncate">Food & Catering</span>}
-        </NavLink>
+        {(isAdmin || currentUser?.role === 'Food Team') && (
+          <NavLink
+            to="/food"
+            className={getItemClass(currentPath.startsWith('/food'))}
+            onClick={onCloseMobile}
+            title={isCollapsed ? 'Food & Catering' : undefined}
+          >
+            <UtensilsCrossed className="h-4 w-4 shrink-0" />
+            {(!isCollapsed || isMobile) && <span className="truncate">Food & Catering</span>}
+          </NavLink>
+        )}
 
-        <NavLink
-          to="/reception"
-          className={getItemClass(currentPath.startsWith('/reception'))}
-          onClick={onCloseMobile}
-          title={isCollapsed ? 'Reception & Desk' : undefined}
-        >
-          <UserCheck className="h-4 w-4 shrink-0" />
-          {(!isCollapsed || isMobile) && <span className="truncate">Reception & Desk</span>}
-        </NavLink>
+        {(isAdmin || currentUser?.role === 'Reception Team') && (
+          <NavLink
+            to="/reception"
+            className={getItemClass(currentPath.startsWith('/reception'))}
+            onClick={onCloseMobile}
+            title={isCollapsed ? 'Reception & Desk' : undefined}
+          >
+            <UserCheck className="h-4 w-4 shrink-0" />
+            {(!isCollapsed || isMobile) && <span className="truncate">Reception & Desk</span>}
+          </NavLink>
+        )}
 
-        <NavLink
-          to="/meeting-hall"
-          className={getItemClass(currentPath.startsWith('/meeting-hall'))}
-          onClick={onCloseMobile}
-          title={isCollapsed ? 'Meeting Hall & Seating' : undefined}
-        >
-          <Armchair className="h-4 w-4 shrink-0" />
-          {(!isCollapsed || isMobile) && <span className="truncate">Meeting Hall & Seating</span>}
-        </NavLink>
+        {(isAdmin || currentUser?.role === 'Meeting Hall Team') && (
+          <NavLink
+            to="/meeting-hall"
+            className={getItemClass(currentPath.startsWith('/meeting-hall'))}
+            onClick={onCloseMobile}
+            title={isCollapsed ? 'Meeting Hall & Seating' : undefined}
+          >
+            <Armchair className="h-4 w-4 shrink-0" />
+            {(!isCollapsed || isMobile) && <span className="truncate">Meeting Hall & Seating</span>}
+          </NavLink>
+        )}
 
         {/* Admin Controls */}
         {isAdmin && (
@@ -234,6 +235,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 Secretariat Admin
               </div>
             )}
+
+            <NavLink
+              to="/admin/id-cards"
+              className={getItemClass(currentPath === '/admin/id-cards')}
+              onClick={onCloseMobile}
+              title={isCollapsed ? 'ID Card Management' : undefined}
+            >
+              <CreditCard className="h-4 w-4 shrink-0" />
+              {(!isCollapsed || isMobile) && <span className="truncate">ID Cards & Badges</span>}
+            </NavLink>
 
             <NavLink
               to="/admin/volunteers"
@@ -277,27 +288,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </>
         )}
       </nav>
-
-      {/* Role Simulation Switcher (Clean, compact) */}
-      {(!isCollapsed || isMobile) && (
-        <div className="p-3 border-t border-[#F4F6F4] bg-[#FAF9F6]">
-          <div className="flex items-center gap-1.5 mb-1 text-[10px] font-bold uppercase tracking-wider text-[#69756F]">
-            <Shield className="h-3 w-3 text-[#164734]" />
-            <span>Simulate Role (Demo)</span>
-          </div>
-          <select
-            value={currentUser?.role || ''}
-            onChange={(e) => switchRole(e.target.value as UserRole)}
-            className="w-full text-xs bg-white border border-[#E3E7E4] rounded-lg px-2.5 py-2 sm:py-1.5 min-h-[40px] sm:min-h-[36px] text-[#1A221E] shadow-card-subtle focus:ring-2 focus:ring-[#164734]/20 focus:border-[#164734] outline-none"
-          >
-            {demoRoles.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
 
       {/* Logged in User Bar & Logout */}
       <div className="p-3 border-t border-[#F4F6F4] flex items-center justify-between bg-white shrink-0">

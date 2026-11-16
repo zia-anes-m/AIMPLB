@@ -59,32 +59,32 @@ export const StatCard: React.FC<StatCardProps> = ({
   return (
     <div
       className={cn(
-        'group relative rounded-xl border p-3 sm:p-4 shadow-card-subtle transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5 flex flex-col justify-between overflow-hidden',
+        'group relative rounded-xl border px-3 py-2 sm:px-3 sm:py-2.5 shadow-card-subtle transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5 flex flex-col justify-between overflow-hidden min-w-0',
         style.card,
         className
       )}
     >
       <div>
-        <div className="flex items-center justify-between gap-1.5 mb-1.5 sm:mb-2">
-          <span className="text-[10px] sm:text-[11px] font-semibold tracking-wider text-[#69756F] uppercase truncate">
+        <div className="flex items-start justify-between gap-1.5 min-w-0">
+          <span className="text-[11px] sm:text-xs font-semibold text-[#37433D] leading-tight break-words">
             {title}
           </span>
           {Icon && (
             <div
               className={cn(
-                'p-1 sm:p-1.5 rounded-lg shrink-0 transition-transform duration-200 group-hover:scale-105',
+                'p-1 rounded-md shrink-0 transition-transform duration-200 group-hover:scale-105',
                 style.iconBox
               )}
             >
-              <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <Icon className="h-3.5 w-3.5" />
             </div>
           )}
         </div>
 
-        <div className="flex items-baseline gap-1.5 sm:gap-2 flex-wrap">
+        <div className="flex items-baseline gap-1.5 mt-1 flex-wrap">
           <span
             className={cn(
-              'text-lg sm:text-2xl font-bold tracking-tight font-mono',
+              'text-xl sm:text-2xl font-bold tracking-tight font-mono leading-none',
               style.value
             )}
           >
@@ -99,7 +99,7 @@ export const StatCard: React.FC<StatCardProps> = ({
       </div>
 
       {subtitle && (
-        <p className="mt-1.5 text-[10px] sm:text-[11px] text-[#69756F] truncate leading-tight">
+        <p className="mt-0.5 text-[10px] sm:text-[11px] text-[#69756F] leading-tight break-words">
           {subtitle}
         </p>
       )}

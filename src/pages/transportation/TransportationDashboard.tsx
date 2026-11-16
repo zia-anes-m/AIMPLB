@@ -241,7 +241,7 @@ export const TransportationDashboard: React.FC = () => {
       />
 
       {/* Real Computed Statistical Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5 sm:gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-2.5">
         <StatCard
           title="Total Invitees"
           value={stats.totalInvitees}
@@ -256,7 +256,7 @@ export const TransportationDashboard: React.FC = () => {
           variant="success"
         />
         <StatCard
-          title="Arrivals Pend."
+          title="Arrivals Pending"
           value={stats.arrivalsPending}
           subtitle="Need arrival plan"
           icon={AlertCircle}
@@ -270,7 +270,7 @@ export const TransportationDashboard: React.FC = () => {
           variant="success"
         />
         <StatCard
-          title="Departures Pend."
+          title="Departures Pending"
           value={stats.departuresPending}
           subtitle="Need return plan"
           icon={AlertCircle}

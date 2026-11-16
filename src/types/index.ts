@@ -31,6 +31,8 @@ export interface Invitee {
   state: string;
   country: string;
   remarks?: string | null;
+  id_card_remarks?: string | null;
+  qr_token?: string | null;
   created_by?: string | null;
   created_at: string;
   updated_at: string;
@@ -188,6 +190,10 @@ export interface EventAttendanceRecord {
   status: 'IN' | 'OUT' | 'Inside' | 'Completed';
   entry_notes?: string | null;
   exit_notes?: string | null;
+  scan_mode?: 'QR_CAMERA' | 'MANUAL_SEARCH' | 'MANUAL_OVERRIDE';
+  is_corrected?: boolean;
+  corrected_by?: string | null;
+  correction_reason?: string | null;
   duration_minutes?: number | null;
   notes?: string | null;
   created_at: string;

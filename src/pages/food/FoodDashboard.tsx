@@ -218,7 +218,7 @@ export const FoodDashboard: React.FC = () => {
       />
 
       {/* Real Computed Statistical Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5 sm:gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-2.5">
         <StatCard
           title="Total Delegates"
           value={stats.totalInvitees}
@@ -233,7 +233,7 @@ export const FoodDashboard: React.FC = () => {
           variant="success"
         />
         <StatCard
-          title="Arrang. Pending"
+          title="Arrangements Pending"
           value={stats.pending}
           subtitle="Awaiting meal plan"
           icon={AlertCircle}

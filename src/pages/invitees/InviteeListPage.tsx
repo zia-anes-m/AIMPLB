@@ -131,6 +131,8 @@ export const InviteeListPage: React.FC = () => {
           'Category',
           'Phone Number',
           'Alternate Phone',
+          'City',
+          'State',
           'Remarks',
           'Registered Date',
         ];
@@ -155,6 +157,8 @@ export const InviteeListPage: React.FC = () => {
             i.category,
             i.phone,
             i.alternate_phone || '',
+            i.city,
+            i.state,
             i.remarks || '',
             formatDate(i.created_at),
           ]
@@ -216,7 +220,7 @@ export const InviteeListPage: React.FC = () => {
         <SearchInput
           value={searchQuery}
           onChange={setSearchQuery}
-          placeholder="Search by name, ID (e.g. AIM-INV-0001), phone, city..."
+          placeholder="Search by name, ID (e.g. AIM-F-001, AIM-G-001), phone, city..."
           className="w-full md:w-96"
         />
 

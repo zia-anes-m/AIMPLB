@@ -14,6 +14,7 @@ export function formatDate(dateString: string | null | undefined): string {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
+      timeZone: 'Asia/Kolkata',
     });
   } catch {
     return dateString;
@@ -23,7 +24,17 @@ export function formatDate(dateString: string | null | undefined): string {
 export function formatTime(timeString: string | null | undefined): string {
   if (!timeString) return '—';
   try {
-    // If it's already HH:MM or HH:MM:SS
+    if (timeString.includes('T') || timeString.includes('Z')) {
+      const d = new Date(timeString);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+          timeZone: 'Asia/Kolkata',
+        });
+      }
+    }
     const parts = timeString.split(':');
     if (parts.length >= 2) {
       const hours = parseInt(parts[0], 10);

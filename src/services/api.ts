@@ -2,6 +2,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { safeStorage } from '@/lib/safeStorage';
 import {
   Invitee,
+  InviteeCategory,
   TransportationRecord,
   AccommodationRecord,
   FoodRecord,
@@ -122,10 +123,108 @@ function getCurrentSessionUserRole(): string | null {
 function redactInviteeForNonAdmin(invitee: Invitee): Invitee {
   return {
     ...invitee,
-    city: '[Restricted]',
-    state: '[Restricted]',
     address: '[Restricted]',
   };
+}
+
+export function getCategoryPrefix(category: InviteeCategory): string {
+  switch (category) {
+    case 'Founder Members':
+      return 'AIM-F-';
+    case 'Special Invitees':
+      return 'AIM-S-';
+    case 'General Members':
+    default:
+      return 'AIM-G-';
+  }
+}
+
+export function generateNextCategoryCode(category: InviteeCategory, existingInvitees: Invitee[]): string {
+  const prefix = getCategoryPrefix(category);
+  const matchingCodes = existingInvitees
+    .filter((i) => i.category === category && i.invitee_code && i.invitee_code.startsWith(prefix))
+    .map((i) => {
+      const numPart = parseInt(i.invitee_code.replace(prefix, ''), 10);
+      return isNaN(numPart) ? 0 : numPart;
+    });
+  const maxNum = matchingCodes.length > 0 ? Math.max(...matchingCodes) : 0;
+  return `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
+}
+
+export function generateSecureQrToken(inviteeIdOrCode: string): string {
+  const clean = inviteeIdOrCode.replace(/[^a-zA-Z0-9]/g, '');
+  const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `AIM-SEC-${clean}-${rand}`;
+}
+
+function migrateAndNormalizeInvitees(list: Invitee[]): Invitee[] {
+  let fCount = 0;
+  let gCount = 0;
+  let sCount = 0;
+
+  for (const inv of list) {
+    if (inv.invitee_code?.startsWith('AIM-F-')) {
+      const n = parseInt(inv.invitee_code.replace('AIM-F-', ''), 10);
+      if (!isNaN(n) && n > fCount) fCount = n;
+    } else if (inv.invitee_code?.startsWith('AIM-S-')) {
+      const n = parseInt(inv.invitee_code.replace('AIM-S-', ''), 10);
+      if (!isNaN(n) && n > sCount) sCount = n;
+    } else if (inv.invitee_code?.startsWith('AIM-G-')) {
+      const n = parseInt(inv.invitee_code.replace('AIM-G-', ''), 10);
+      if (!isNaN(n) && n > gCount) gCount = n;
+    }
+  }
+
+  let changed = false;
+  const normalized = list.map((inv) => {
+    let code = inv.invitee_code;
+    let token = inv.qr_token;
+
+    if (!code || code.startsWith('AIM-INV-')) {
+      changed = true;
+      if (inv.category === 'Founder Members') {
+        fCount += 1;
+        code = `AIM-F-${String(fCount).padStart(3, '0')}`;
+      } else if (inv.category === 'Special Invitees') {
+        sCount += 1;
+        code = `AIM-S-${String(sCount).padStart(3, '0')}`;
+      } else {
+        gCount += 1;
+        code = `AIM-G-${String(gCount).padStart(3, '0')}`;
+      }
+    }
+
+    if (!token) {
+      changed = true;
+      token = generateSecureQrToken(inv.id || code);
+    }
+
+    // Ensure id_card_remarks is properly populated from INITIAL_INVITEES or remarks
+    let idCardRemarks = inv.id_card_remarks;
+    if (!idCardRemarks) {
+      const match = INITIAL_INVITEES.find((init) => init.id === inv.id);
+      if (match?.id_card_remarks) {
+        idCardRemarks = match.id_card_remarks;
+        changed = true;
+      } else if (inv.remarks) {
+        idCardRemarks = inv.remarks;
+        changed = true;
+      }
+    }
+
+    return {
+      ...inv,
+      invitee_code: code,
+      qr_token: token,
+      id_card_remarks: idCardRemarks ?? null,
+    };
+  });
+
+  if (changed) {
+    setLocalItem(STORAGE_KEYS.INVITEES, normalized);
+  }
+
+  return normalized;
 }
 
 export async function getRawInvitees(): Promise<Invitee[]> {
@@ -134,10 +233,11 @@ export async function getRawInvitees(): Promise<Invitee[]> {
       .from('invitees')
       .select('*')
       .order('created_at', { ascending: false });
-    if (!error && data) return data as Invitee[];
+    if (!error && data) return migrateAndNormalizeInvitees(data as Invitee[]);
     console.warn('Supabase query failed, falling back to local database:', error);
   }
-  return getLocalItem<Invitee[]>(STORAGE_KEYS.INVITEES, INITIAL_INVITEES);
+  const localList = getLocalItem<Invitee[]>(STORAGE_KEYS.INVITEES, INITIAL_INVITEES);
+  return migrateAndNormalizeInvitees(localList);
 }
 
 export async function getInvitees(): Promise<Invitee[]> {
@@ -158,6 +258,33 @@ export async function getInviteeById(id: string): Promise<Invitee | null> {
     return found;
   }
   return redactInviteeForNonAdmin(found);
+}
+
+export async function getInviteeByQrToken(token: string): Promise<Invitee | null> {
+  const clean = token.trim();
+  if (!clean) return null;
+  const invitees = await getRawInvitees();
+  const found =
+    invitees.find(
+      (i) =>
+        i.qr_token === clean ||
+        (i.invitee_code && i.invitee_code.toUpperCase() === clean.toUpperCase()) ||
+        i.id === clean
+    ) || null;
+  if (!found) return null;
+  const role = getCurrentSessionUserRole();
+  return role === 'Admin' ? found : redactInviteeForNonAdmin(found);
+}
+
+export async function getInviteeByCode(code: string): Promise<Invitee | null> {
+  const clean = code.trim().toUpperCase();
+  if (!clean) return null;
+  const invitees = await getRawInvitees();
+  const found =
+    invitees.find((i) => (i.invitee_code && i.invitee_code.toUpperCase() === clean) || i.id === code) || null;
+  if (!found) return null;
+  const role = getCurrentSessionUserRole();
+  return role === 'Admin' ? found : redactInviteeForNonAdmin(found);
 }
 
 export async function checkDuplicateInvitee(
@@ -189,26 +316,32 @@ export async function createInvitee(
   data: Omit<Invitee, 'id' | 'invitee_code' | 'created_at' | 'updated_at'>,
   user: UserProfile
 ): Promise<Invitee> {
+  const list = getLocalItem<Invitee[]>(STORAGE_KEYS.INVITEES, INITIAL_INVITEES);
+  const newCode = generateNextCategoryCode(data.category, list);
+  const qrToken = generateSecureQrToken(newCode);
+  const now = new Date().toISOString();
+
+  const payload = {
+    ...data,
+    invitee_code: newCode,
+    qr_token: qrToken,
+    id_card_remarks: data.id_card_remarks || null,
+    created_by: user.id,
+  };
+
   if (isSupabaseConfigured) {
     const { data: inserted, error } = await supabase
       .from('invitees')
-      .insert([{ ...data, created_by: user.id }])
+      .insert([payload])
       .select()
       .single();
     if (!error && inserted) return inserted as Invitee;
     console.warn('Supabase insert failed, storing locally:', error);
   }
 
-  const list = getLocalItem<Invitee[]>(STORAGE_KEYS.INVITEES, INITIAL_INVITEES);
-  const nextNum = list.length + 1;
-  const newCode = `AIM-INV-${String(nextNum).padStart(4, '0')}`;
-  const now = new Date().toISOString();
-
   const newInvitee: Invitee = {
-    ...data,
+    ...payload,
     id: 'inv-' + Date.now(),
-    invitee_code: newCode,
-    created_by: user.id,
     created_at: now,
     updated_at: now,
   };
@@ -1101,10 +1234,27 @@ export async function recordEventEntry(
   inviteeId: string,
   user: UserProfile,
   eventDate?: string,
-  notes?: string
+  notes?: string,
+  scanMode: 'QR_CAMERA' | 'MANUAL_SEARCH' | 'MANUAL_OVERRIDE' = 'QR_CAMERA'
 ): Promise<EventAttendanceRecord> {
   const now = new Date().toISOString();
   const date = eventDate || now.slice(0, 10);
+
+  const list = getLocalItem<EventAttendanceRecord[]>(STORAGE_KEYS.EVENT_ATTENDANCE, INITIAL_EVENT_ATTENDANCE);
+
+  // Validation: Prevent duplicate IN operations
+  const activeSession = list.find(
+    (r) => r.invitee_id === inviteeId && r.status === 'IN' && !r.exit_time
+  );
+  if (activeSession) {
+    const entryFormatted = new Date(activeSession.entry_time).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    throw new Error(
+      `Duplicate Scan Blocked: Delegate is already checked IN (inside venue since ${entryFormatted}). Record gate exit (OUT) before re-entering.`
+    );
+  }
 
   const newRec: EventAttendanceRecord = {
     id: 'evt-att-' + Date.now(),
@@ -1115,16 +1265,20 @@ export async function recordEventEntry(
     entry_recorded_by: user.id,
     entry_recorded_by_name: user.full_name,
     entry_notes: notes,
+    scan_mode: scanMode,
+    is_corrected: false,
     created_at: now,
     updated_at: now,
   };
 
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from('event_attendance').insert([newRec]).select().single();
-    if (!error && data) return data as EventAttendanceRecord;
+    if (!error && data) {
+      window.dispatchEvent(new CustomEvent('aimplb_db_update'));
+      return data as EventAttendanceRecord;
+    }
   }
 
-  const list = getLocalItem<EventAttendanceRecord[]>(STORAGE_KEYS.EVENT_ATTENDANCE, INITIAL_EVENT_ATTENDANCE);
   setLocalItem(STORAGE_KEYS.EVENT_ATTENDANCE, [newRec, ...list]);
   recordLocalAudit(user, 'EVENT_ENTRY', 'event_attendance', newRec.id, null, newRec);
   return newRec;
@@ -1133,21 +1287,22 @@ export async function recordEventEntry(
 export async function recordEventExit(
   recordIdOrInviteeId: string,
   user: UserProfile,
-  notes?: string
+  notes?: string,
+  scanMode: 'QR_CAMERA' | 'MANUAL_SEARCH' | 'MANUAL_OVERRIDE' = 'QR_CAMERA'
 ): Promise<EventAttendanceRecord> {
   const now = new Date().toISOString();
   const list = getLocalItem<EventAttendanceRecord[]>(STORAGE_KEYS.EVENT_ATTENDANCE, INITIAL_EVENT_ATTENDANCE);
 
-  // Find open session
-  let rec = list.find((r) => r.id === recordIdOrInviteeId);
+  // Validation: Validate that delegate is currently inside
+  let rec = list.find((r) => r.id === recordIdOrInviteeId && r.status === 'IN' && !r.exit_time);
   if (!rec) {
     rec = list.find((r) => r.invitee_id === recordIdOrInviteeId && r.status === 'IN' && !r.exit_time);
   }
   if (!rec) {
-    // If no open session found, find latest session for this invitee
-    rec = list.find((r) => r.invitee_id === recordIdOrInviteeId);
+    throw new Error(
+      'Invalid Scan OUT: Delegate is not currently inside venue. An active gate entry (IN) must exist before recording exit.'
+    );
   }
-  if (!rec) throw new Error('No active gate entry session found for this delegate');
 
   const entryTime = new Date(rec.entry_time).getTime();
   const exitTime = new Date(now).getTime();
@@ -1160,12 +1315,14 @@ export async function recordEventExit(
     exit_recorded_by: user.id,
     exit_recorded_by_name: user.full_name,
     exit_notes: notes ?? rec.exit_notes,
+    scan_mode: scanMode,
     duration_minutes: durationMinutes,
     updated_at: now,
   };
 
   if (isSupabaseConfigured) {
     await supabase.from('event_attendance').update(updated).eq('id', rec.id);
+    window.dispatchEvent(new CustomEvent('aimplb_db_update'));
   }
 
   const idx = list.findIndex((r) => r.id === rec!.id);
@@ -1180,7 +1337,8 @@ export async function recordEventExit(
 export async function correctEventAttendance(
   recordId: string,
   updates: Partial<EventAttendanceRecord>,
-  user: UserProfile
+  user: UserProfile,
+  reason?: string
 ): Promise<EventAttendanceRecord> {
   const now = new Date().toISOString();
   const list = getLocalItem<EventAttendanceRecord[]>(STORAGE_KEYS.EVENT_ATTENDANCE, INITIAL_EVENT_ATTENDANCE);
@@ -1191,6 +1349,9 @@ export async function correctEventAttendance(
   const updated: EventAttendanceRecord = {
     ...old,
     ...updates,
+    is_corrected: true,
+    corrected_by: user.id,
+    correction_reason: reason || updates.correction_reason || 'Administrative manual correction',
     updated_at: now,
   };
 
@@ -1204,11 +1365,12 @@ export async function correctEventAttendance(
 
   if (isSupabaseConfigured) {
     await supabase.from('event_attendance').update(updated).eq('id', recordId);
+    window.dispatchEvent(new CustomEvent('aimplb_db_update'));
   }
 
   list[idx] = updated;
   setLocalItem(STORAGE_KEYS.EVENT_ATTENDANCE, [...list]);
-  recordLocalAudit(user, 'UPDATE', 'event_attendance', recordId, old, updated);
+  recordLocalAudit(user, 'MANUAL_CORRECTION', 'event_attendance', recordId, old, updated);
   return updated;
 }
 

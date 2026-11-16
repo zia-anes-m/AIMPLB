@@ -127,11 +127,102 @@ body {
   }
 }
 
+/* ==========================================================================
+   AIMPLB ID Card Dedicated Print Stylesheet
+   Standardized 90mm x 140mm Portrait Event Badge
+   Consistent layout & physical dimensions on mobile and desktop
+   ========================================================================== */
+
+/* Screen mode: keep isolated print portal hidden */
+#aimplb-print-isolated-root {
+  display: none !important;
+}
+
 @media print {
+  /* Set exact physical badge page size with zero margin */
+  @page {
+    size: 90mm 140mm;
+    margin: 0;
+  }
+
+  /* When printing ID cards: HIDE entire web application (#root, dialogs, backdrops, navbars) */
+  body.aimplb-printing-id-card {
+    background: #FFFFFF !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 90mm !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body.aimplb-printing-id-card #root {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  body.aimplb-printing-id-card [role="dialog"],
+  body.aimplb-printing-id-card .fixed {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Show ONLY the dedicated isolated print container */
+  body.aimplb-printing-id-card #aimplb-print-isolated-root {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 90mm !important;
+    background: #FFFFFF !important;
+  }
+
+  body.aimplb-printing-id-card #aimplb-print-isolated-root * {
+    visibility: visible !important;
+  }
+
+  /* Each ID card page wrapper in print */
+  .aimplb-print-badge-page {
+    width: 90mm !important;
+    height: 140mm !important;
+    min-width: 90mm !important;
+    min-height: 140mm !important;
+    max-width: 90mm !important;
+    max-height: 140mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  .aimplb-print-badge-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  /* Ensure card itself maintains exact physical dimensions and colors */
+  body.aimplb-printing-id-card .aimplb-id-card {
+    width: 90mm !important;
+    height: 140mm !important;
+    min-width: 90mm !important;
+    min-height: 140mm !important;
+    max-width: 90mm !important;
+    max-height: 140mm !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   .no-print {
     display: none !important;
   }
-  body {
+  body:not(.aimplb-printing-id-card) {
     background: white !important;
     color: black !important;
   }

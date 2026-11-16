@@ -396,7 +396,7 @@ export const MeetingHallDashboard: React.FC = () => {
       </div>
 
       {/* Real Computed Statistical Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
         <StatCard
           title="Total Delegates"
           value={stats.totalInvitees}

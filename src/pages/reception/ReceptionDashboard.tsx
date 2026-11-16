@@ -11,6 +11,8 @@ import {
   Calendar,
   LogOut,
   LogIn,
+  QrCode,
+  Edit2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -20,6 +22,8 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { SearchInput } from '@/components/common/SearchInput';
 import { EmptyState } from '@/components/common/EmptyState';
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
+import { QRScannerModal } from '@/components/reception/QRScannerModal';
+import { AttendanceCorrectionModal } from '@/components/reception/AttendanceCorrectionModal';
 import { Invitee, EventAttendanceRecord } from '@/types';
 import {
   getInvitees,
@@ -34,7 +38,7 @@ import { formatDateTime, formatDate } from '@/lib/utils';
 
 export const ReceptionDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser, isAdmin } = useAuth();
   const toast = useToast();
 
   const [invitees, setInvitees] = useState<Invitee[]>([]);
@@ -42,6 +46,12 @@ export const ReceptionDashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [viewMode, setViewMode] = useState<'auto' | 'cards' | 'table'>('auto');
+
+  // Scanner & Correction Modal States
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [scannerMode, setScannerMode] = useState<'IN' | 'OUT'>('IN');
+  const [correctionRecord, setCorrectionRecord] = useState<EventAttendanceRecord | null>(null);
+  const [isCorrectionOpen, setIsCorrectionOpen] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -205,7 +215,27 @@ export const ReceptionDashboard: React.FC = () => {
         title="Event Reception & Gate Attendance"
         subtitle="Live physical venue entry and exit verification across session dates. Decoupled from hotel and room management."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              onClick={() => {
+                setScannerMode('IN');
+                setIsScannerOpen(true);
+              }}
+              className="bg-[#164734] hover:bg-[#123829] text-white flex items-center gap-1.5 h-9 text-xs font-bold shadow-xs"
+            >
+              <QrCode className="h-4 w-4" />
+              <span>SCAN IN</span>
+            </Button>
+            <Button
+              onClick={() => {
+                setScannerMode('OUT');
+                setIsScannerOpen(true);
+              }}
+              className="bg-amber-600 hover:bg-amber-700 text-white flex items-center gap-1.5 h-9 text-xs font-bold shadow-xs"
+            >
+              <QrCode className="h-4 w-4" />
+              <span>SCAN OUT</span>
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -218,6 +248,51 @@ export const ReceptionDashboard: React.FC = () => {
           </div>
         }
       />
+
+      {/* Prominent Quick-Action Scanning Banner */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 bg-gradient-to-r from-[#164734] via-[#1b563f] to-[#0D281D] p-3.5 sm:p-4 rounded-2xl text-white shadow-md">
+        <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/10 backdrop-blur-xs border border-white/15">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-1.5 text-xs uppercase font-bold tracking-wider text-[#C5DEC8]">
+              <LogIn className="h-3.5 w-3.5" />
+              <span>Gate Entry Scanner</span>
+            </div>
+            <div className="text-base sm:text-lg font-bold">Venue Inward Check-in</div>
+            <div className="text-[11px] sm:text-xs text-white/80">Scan QR or enter ID to record venue arrival</div>
+          </div>
+          <Button
+            onClick={() => {
+              setScannerMode('IN');
+              setIsScannerOpen(true);
+            }}
+            className="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold px-4 h-11 sm:h-10 text-xs sm:text-sm shadow-md flex items-center gap-2"
+          >
+            <QrCode className="h-4 w-4" />
+            <span>SCAN IN</span>
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/10 backdrop-blur-xs border border-white/15">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-1.5 text-xs uppercase font-bold tracking-wider text-amber-200">
+              <LogOut className="h-3.5 w-3.5" />
+              <span>Gate Exit Scanner</span>
+            </div>
+            <div className="text-base sm:text-lg font-bold">Venue Outward Checkout</div>
+            <div className="text-[11px] sm:text-xs text-white/80">Scan QR or enter ID to record venue departure</div>
+          </div>
+          <Button
+            onClick={() => {
+              setScannerMode('OUT');
+              setIsScannerOpen(true);
+            }}
+            className="bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white font-bold px-4 h-11 sm:h-10 text-xs sm:text-sm shadow-md flex items-center gap-2"
+          >
+            <QrCode className="h-4 w-4" />
+            <span>SCAN OUT</span>
+          </Button>
+        </div>
+      </div>
 
       {/* Date Filter Bar */}
       <div className="bg-white p-3.5 rounded-2xl border border-[#E3E7E4] shadow-card-subtle flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -250,7 +325,7 @@ export const ReceptionDashboard: React.FC = () => {
       </div>
 
       {/* 5 Core Metric Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-2.5">
         <StatCard
           title="Total Invitees"
           value={stats.totalInvitees}
@@ -378,6 +453,7 @@ export const ReceptionDashboard: React.FC = () => {
                 <MobileDataCard
                   key={inv.id}
                   title={inv.full_name}
+                  identifier={inv.invitee_code}
                   subtitle={`${inv.city}, ${inv.state}`}
                   badge={
                     <span
@@ -486,10 +562,15 @@ export const ReceptionDashboard: React.FC = () => {
                         onClick={() => navigate(`/invitees/${inv.id}`)}
                       >
                         <td className="py-3.5 px-4 font-medium text-[#1A221E]">
-                          <div className="font-semibold text-sm group-hover:text-[#164734] transition-colors">
-                            {inv.full_name}
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold bg-[#E8F1EC] text-[#164734] px-2 py-0.5 rounded border border-[#C5DEC8]">
+                              {inv.invitee_code}
+                            </span>
+                            <span className="font-semibold text-sm group-hover:text-[#164734] transition-colors">
+                              {inv.full_name}
+                            </span>
                           </div>
-                          <div className="text-[11px] text-[#69756F]">
+                          <div className="text-[11px] text-[#69756F] mt-0.5">
                             {inv.city}, {inv.state}
                           </div>
                         </td>
@@ -569,6 +650,21 @@ export const ReceptionDashboard: React.FC = () => {
                             <Eye className="h-3 w-3 mr-1" />
                             <span>Profile</span>
                           </Button>
+
+                          {(isAdmin || currentUser?.role === 'Reception Team') && activeSession && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setCorrectionRecord(activeSession);
+                                setIsCorrectionOpen(true);
+                              }}
+                              className="h-7 text-xs px-2 text-[#69756F] hover:text-[#164734] hover:bg-[#E8F1EC]"
+                              title="Audit/Correct Attendance Record"
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -579,6 +675,29 @@ export const ReceptionDashboard: React.FC = () => {
           </div>
         </>
       )}
+
+      {/* QR Scanner Modal (Dual-Mode: IN / OUT with camera & manual fallback) */}
+      <QRScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        initialMode={scannerMode}
+        onScanComplete={() => {
+          loadData();
+        }}
+      />
+
+      {/* Attendance Audit & Correction Modal */}
+      <AttendanceCorrectionModal
+        isOpen={isCorrectionOpen}
+        onClose={() => {
+          setIsCorrectionOpen(false);
+          setCorrectionRecord(null);
+        }}
+        record={correctionRecord}
+        onSuccess={() => {
+          loadData();
+        }}
+      />
     </div>
   );
 };

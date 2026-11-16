@@ -21,6 +21,7 @@ const inviteeSchema = z.object({
   state: z.string().min(2, 'State is required'),
   country: z.string().default('India'),
   remarks: z.string().optional().nullable(),
+  id_card_remarks: z.string().optional().nullable(),
 });
 
 type FormData = z.infer<typeof inviteeSchema>;
@@ -64,6 +65,7 @@ export const InviteeFormModal: React.FC<InviteeFormModalProps> = ({
       state: '',
       country: 'India',
       remarks: '',
+      id_card_remarks: '',
     },
   });
 
@@ -79,6 +81,7 @@ export const InviteeFormModal: React.FC<InviteeFormModalProps> = ({
         state: inviteeToEdit.state,
         country: inviteeToEdit.country,
         remarks: inviteeToEdit.remarks || '',
+        id_card_remarks: inviteeToEdit.id_card_remarks || '',
       });
     } else {
       reset({
@@ -91,6 +94,7 @@ export const InviteeFormModal: React.FC<InviteeFormModalProps> = ({
         state: '',
         country: 'India',
         remarks: '',
+        id_card_remarks: '',
       });
     }
     setDuplicateWarning(null);
@@ -135,6 +139,7 @@ export const InviteeFormModal: React.FC<InviteeFormModalProps> = ({
             state: data.state,
             country: data.country || 'India',
             remarks: data.remarks || null,
+            id_card_remarks: data.id_card_remarks || null,
             created_by: currentUser.id,
           },
           currentUser
@@ -301,13 +306,28 @@ export const InviteeFormModal: React.FC<InviteeFormModalProps> = ({
 
         <div>
           <label className="block text-xs font-semibold text-[#1A221E] mb-1.5">
-            Special Remarks / Protocol Instructions
+            Internal Secretariat Notes & Protocol Instructions
           </label>
           <textarea
-            rows={3}
-            placeholder="Special instructions, dietary notes, health assistance, or priority seating requests..."
+            rows={2}
+            placeholder="Internal notes, dietary notes, health assistance, or priority seating requests..."
             className="w-full rounded-lg border border-[#E3E7E4] bg-white p-3 text-xs sm:text-sm text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20 focus:border-[#164734]"
             {...register('remarks')}
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-xs font-semibold text-[#164734]">
+              ID Card Remarks (Printed on Badge)
+            </label>
+            <span className="text-[10px] text-[#69756F] italic">Strictly separate from internal notes</span>
+          </div>
+          <input
+            type="text"
+            placeholder="e.g. Dais & Presidium Access, Special Guest, Board Member"
+            className="h-10 w-full rounded-lg border border-[#C5DEC8] bg-[#FAF9F6] px-3 text-xs sm:text-sm text-[#1A221E] focus:outline-none focus:ring-2 focus:ring-[#164734]/20 focus:border-[#164734]"
+            {...register('id_card_remarks')}
           />
         </div>
 

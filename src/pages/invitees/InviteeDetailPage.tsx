@@ -21,6 +21,7 @@ import {
   Layers,
   ChevronDown,
   ChevronUp,
+  CreditCard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -351,7 +352,16 @@ export const InviteeDetailPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
+            <Button
+              size="sm"
+              onClick={() => navigate(`/admin/id-cards?invitee=${invitee.id}`)}
+              className="flex items-center justify-center gap-1.5 bg-[#164734] hover:bg-[#123829] text-white w-full md:w-auto h-9 sm:h-8 font-semibold shadow-xs"
+            >
+              <CreditCard className="h-3.5 w-3.5" />
+              <span>Print ID Badge</span>
+            </Button>
+
             {canEditBasic && (
               <Button
                 variant="outline"
@@ -523,11 +533,11 @@ export const InviteeDetailPage: React.FC = () => {
                 </span>
               )}
             </div>
-            {/* Role-based Expandable Details Section */}
+            {/* Expandable Details Section */}
             <div className="sm:col-span-2 md:col-span-3 pt-3 border-t border-[#F4F6F4]">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-[#69756F]">
-                  {isAdmin ? 'Confidential Delegate Details' : 'Protocol & Notes'}
+                  {isAdmin ? 'Confidential Delegate Details' : 'Location, Protocol & Notes'}
                 </span>
                 <button
                   type="button"
@@ -542,7 +552,7 @@ export const InviteeDetailPage: React.FC = () => {
                   ) : (
                     <>
                       <ChevronDown className="h-3.5 w-3.5" />
-                      <span>{isAdmin ? 'Show More (City, Address & Remarks)' : 'Show Remarks'}</span>
+                      <span>{isAdmin ? 'Show More (Address & Remarks)' : 'Show More (City & Remarks)'}</span>
                     </>
                   )}
                 </button>
@@ -550,24 +560,28 @@ export const InviteeDetailPage: React.FC = () => {
 
               {showMoreDetails && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-3 mt-3 border-t border-[#F4F6F4] animate-fade-in">
+                  <div>
+                    <span className="text-[#69756F] block font-medium">City & State</span>
+                    <span className="text-[#1A221E] mt-0.5 block font-medium">
+                      {invitee.city}, {invitee.state}{invitee.country ? `, ${invitee.country}` : ''}
+                    </span>
+                  </div>
                   {isAdmin && (
-                    <>
-                      <div>
-                        <span className="text-[#69756F] block font-medium">City & State</span>
-                        <span className="text-[#1A221E] mt-0.5 block font-medium">
-                          {invitee.city}, {invitee.state}, {invitee.country}
-                        </span>
-                      </div>
-                      <div className="sm:col-span-2">
-                        <span className="text-[#69756F] block font-medium">Address / Affiliated Institution</span>
-                        <span className="text-[#1A221E] mt-0.5 block">{invitee.address || '—'}</span>
-                      </div>
-                    </>
+                    <div className="sm:col-span-2">
+                      <span className="text-[#69756F] block font-medium">Address / Affiliated Institution</span>
+                      <span className="text-[#1A221E] mt-0.5 block">{invitee.address || '—'}</span>
+                    </div>
                   )}
-                  <div className="sm:col-span-2 md:col-span-3">
-                    <span className="text-[#69756F] block font-medium">Special Remarks / Protocol</span>
-                    <p className="text-[#1A221E] mt-1 bg-[#FAF9F6] p-3 rounded-xl border border-[#E3E7E4]">
-                      {invitee.remarks || 'No special remarks recorded.'}
+                  <div className={isAdmin ? 'sm:col-span-1' : 'sm:col-span-1'}>
+                    <span className="text-[#69756F] block font-medium">Internal Secretariat Notes</span>
+                    <p className="text-[#1A221E] mt-1 bg-[#FAF9F6] p-2.5 rounded-xl border border-[#E3E7E4]">
+                      {invitee.remarks || 'No internal notes recorded.'}
+                    </p>
+                  </div>
+                  <div className={isAdmin ? 'sm:col-span-2' : 'sm:col-span-2'}>
+                    <span className="text-[#164734] block font-semibold">ID Card Remarks (Printed on Badge)</span>
+                    <p className="text-[#1A221E] mt-1 bg-[#E8F1EC]/50 p-2.5 rounded-xl border border-[#C5DEC8] font-medium">
+                      {invitee.id_card_remarks || 'Standard Delegate Badge'}
                     </p>
                   </div>
                 </div>

@@ -25,6 +25,7 @@ const VolunteerManagement = lazy(() => import('@/pages/admin/VolunteerManagement
 const ReportsPage = lazy(() => import('@/pages/admin/ReportsPage').then((m) => ({ default: m.ReportsPage })));
 const AuditLogsPage = lazy(() => import('@/pages/admin/AuditLogsPage').then((m) => ({ default: m.AuditLogsPage })));
 const SystemSettingsPage = lazy(() => import('@/pages/admin/SystemSettingsPage').then((m) => ({ default: m.SystemSettingsPage })));
+const IDCardManagementPage = lazy(() => import('@/pages/admin/IDCardManagementPage').then((m) => ({ default: m.IDCardManagementPage })));
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -145,6 +146,14 @@ export const AppRoutes: React.FC = () => {
             element={
               <ProtectedRoute allowedRoles={['Admin']}>
                 <VolunteerManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/id-cards"
+            element={
+              <ProtectedRoute allowedRoles={['Admin', 'Reception Team']}>
+                <IDCardManagementPage />
               </ProtectedRoute>
             }
           />

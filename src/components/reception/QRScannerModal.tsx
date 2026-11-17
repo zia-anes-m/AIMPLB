@@ -32,7 +32,7 @@ interface QRScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialMode?: 'IN' | 'OUT';
-  onScanComplete?: (invitee: Invitee, record: EventAttendanceRecord) => void;
+  onScanComplete?: (invitee: Invitee, record: EventAttendanceRecord, mode: 'IN' | 'OUT') => void;
 }
 
 interface CameraErrorInfo {
@@ -117,6 +117,51 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
     }
   }, [soundEnabled]);
 
+  // Check if browser origin satisfies secure context requirements
+  const checkIsSecureOrigin = (): boolean => {
+    if (typeof window === 'undefined') return true;
+    if (window.isSecureContext) return true;
+    if (window.location.protocol === 'https:') return true;
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') return true;
+    return false;
+  };
+
+  // Initialize and Stop HTML5 Camera Scanner
+  const stopCamera = useCallback(async () => {
+    // 1. Explicitly terminate any active MediaStream tracks on video elements in container
+    try {
+      const container = document.getElementById(scannerContainerId);
+      if (container) {
+        const videoEls = container.querySelectorAll('video');
+        videoEls.forEach((v) => {
+          if (v.srcObject instanceof MediaStream) {
+            v.srcObject.getTracks().forEach((track) => {
+              try {
+                track.stop();
+              } catch (_) {}
+            });
+            v.srcObject = null;
+          }
+        });
+      }
+    } catch (_) {}
+
+    // 2. Stop and clear HTML5 scanner instance
+    if (scannerRef.current) {
+      try {
+        if (scannerRef.current.isScanning) {
+          await scannerRef.current.stop();
+        }
+        await scannerRef.current.clear();
+      } catch (err) {
+        console.warn('Error stopping scanner:', err);
+      } finally {
+        scannerRef.current = null;
+        setIsScanning(false);
+      }
+    }
+  }, []);
+
   // Handle Token / Identification & Execution
   const processToken = useCallback(
     async (tokenOrCode: string, inputMethod: 'QR_CAMERA' | 'MANUAL_SEARCH' = 'QR_CAMERA') => {
@@ -143,7 +188,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         }
 
         if (!invitee) {
-          throw new Error(`Unrecognized QR Code / Token: "${tokenOrCode.slice(0, 20)}". Delegate record not found in system.`);
+          throw new Error(`Unrecognized QR Code / Token: "${tokenOrCode.slice(0, 25)}". Delegate record not found in system.`);
         }
 
         // 2. Perform either SCAN IN or SCAN OUT
@@ -167,7 +212,11 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         };
         setLastScanResult(result);
-        onScanComplete?.(invitee, record);
+        onScanComplete?.(invitee, record, scanMode);
+
+        // Immediately stop camera tracks and close scanner modal on success
+        await stopCamera();
+        onClose();
       } catch (err: any) {
         playBeep('error');
         setLastScanResult({
@@ -176,38 +225,13 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           message: err.message || 'Operation failed. Please try again.',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         });
+        isHandlingScanRef.current = false;
       } finally {
         setIsProcessing(false);
       }
     },
-    [currentUser, isProcessing, scanMode, playBeep, onScanComplete]
+    [currentUser, isProcessing, scanMode, playBeep, onScanComplete, stopCamera, onClose]
   );
-
-  // Check if browser origin satisfies secure context requirements
-  const checkIsSecureOrigin = (): boolean => {
-    if (typeof window === 'undefined') return true;
-    if (window.isSecureContext) return true;
-    if (window.location.protocol === 'https:') return true;
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') return true;
-    return false;
-  };
-
-  // Initialize and Stop HTML5 Camera Scanner
-  const stopCamera = useCallback(async () => {
-    if (scannerRef.current) {
-      try {
-        if (scannerRef.current.isScanning) {
-          await scannerRef.current.stop();
-        }
-        await scannerRef.current.clear();
-      } catch (err) {
-        console.warn('Error stopping scanner:', err);
-      } finally {
-        scannerRef.current = null;
-        setIsScanning(false);
-      }
-    }
-  }, []);
 
   const parseAndSetCameraError = useCallback((err: any) => {
     const errName = err?.name || '';
@@ -321,6 +345,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
       const handleDecoded = async (decodedText: string) => {
         const trimmed = decodedText.trim();
+        if (!trimmed) return;
         const now = Date.now();
         // Prevent duplicate immediate scans of the same code within 3 seconds
         if (lastScannedCodeRef.current === trimmed && now - lastScannedTimeRef.current < 3000) {
@@ -331,12 +356,11 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         lastScannedCodeRef.current = trimmed;
         lastScannedTimeRef.current = now;
 
-        await processToken(trimmed, 'QR_CAMERA');
+        // 1. Immediately stop the camera and release media tracks
+        await stopCamera();
 
-        // Cooldown before next scan
-        setTimeout(() => {
-          isHandlingScanRef.current = false;
-        }, 1800);
+        // 2. Process attendance against database
+        await processToken(trimmed, 'QR_CAMERA');
       };
 
       // Try rear camera first (facingMode: 'environment')
@@ -540,11 +564,22 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
               )}
 
               {/* Camera Starting Spinner */}
-              {!isScanning && !cameraError && (
+              {!isScanning && !cameraError && !isProcessing && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white p-4 text-center z-10">
                   <RefreshCw className="h-8 w-8 animate-spin text-emerald-400 mb-2" />
                   <p className="text-xs font-semibold">Starting camera feed...</p>
                   <p className="text-[11px] text-gray-400 mt-1">Requesting camera permissions...</p>
+                </div>
+              )}
+
+              {/* Processing Overlay when saving attendance */}
+              {isProcessing && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white p-4 text-center z-30 animate-fade-in">
+                  <RefreshCw className="h-9 w-9 animate-spin text-emerald-400 mb-2.5" />
+                  <p className="text-sm font-bold text-white">Recording Attendance...</p>
+                  <p className="text-xs text-emerald-300 mt-1">
+                    {scanMode === 'IN' ? 'Verifying Venue Entry Check-in' : 'Recording Venue Exit Checkout'}
+                  </p>
                 </div>
               )}
 
@@ -702,6 +737,37 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
                 )}
 
                 <p className="mt-1.5 text-xs font-medium leading-relaxed">{lastScanResult.message}</p>
+
+                {!lastScanResult.success && (
+                  <div className="mt-3 flex items-center gap-2 flex-wrap">
+                    <Button
+                      size="sm"
+                      type="button"
+                      onClick={() => {
+                        setLastScanResult(null);
+                        isHandlingScanRef.current = false;
+                        startCamera();
+                      }}
+                      className="text-xs bg-red-700 hover:bg-red-800 text-white font-semibold h-8 shadow-xs"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                      <span>Retry Camera</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setActiveTab('manual');
+                        setLastScanResult(null);
+                      }}
+                      className="text-xs border-red-200 text-red-800 hover:bg-red-100 h-8"
+                    >
+                      <Search className="h-3.5 w-3.5 mr-1" />
+                      <span>Manual Lookup</span>
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

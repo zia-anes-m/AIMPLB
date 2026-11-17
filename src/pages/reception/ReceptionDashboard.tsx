@@ -14,6 +14,9 @@ import {
   QrCode,
   Edit2,
   AlertCircle,
+  MapPin,
+  Phone,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -52,6 +55,12 @@ export const ReceptionDashboard: React.FC = () => {
   // Scanner & Correction Modal States
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [scannerMode, setScannerMode] = useState<'IN' | 'OUT'>('IN');
+  const [lastScannedResult, setLastScannedResult] = useState<{
+    invitee: Invitee;
+    record: EventAttendanceRecord;
+    mode: 'IN' | 'OUT';
+    timestamp: string;
+  } | null>(null);
   const [correctionRecord, setCorrectionRecord] = useState<EventAttendanceRecord | null>(null);
   const [isCorrectionOpen, setIsCorrectionOpen] = useState(false);
 
@@ -271,6 +280,140 @@ export const ReceptionDashboard: React.FC = () => {
           >
             Retry
           </Button>
+        </div>
+      )}
+
+      {/* Real-time Scanned Invitee Attendance Confirmation Card */}
+      {lastScannedResult && (
+        <div
+          role="region"
+          aria-label="Last scanned attendance confirmation"
+          className={`p-4 sm:p-5 rounded-2xl border-2 shadow-sm animate-fade-in transition-all ${
+            lastScannedResult.mode === 'IN'
+              ? 'bg-gradient-to-br from-emerald-50/95 via-[#F2F8F4] to-white border-[#164734]/30'
+              : 'bg-gradient-to-br from-amber-50/95 via-[#FFFBF2] to-white border-amber-500/30'
+          }`}
+        >
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5 min-w-0">
+              <div
+                className={`p-3 rounded-2xl text-white shadow-xs shrink-0 ${
+                  lastScannedResult.mode === 'IN' ? 'bg-[#164734]' : 'bg-amber-600'
+                }`}
+              >
+                {lastScannedResult.mode === 'IN' ? (
+                  <LogIn className="h-6 w-6" />
+                ) : (
+                  <LogOut className="h-6 w-6" />
+                )}
+              </div>
+
+              <div className="min-w-0 space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
+                      lastScannedResult.mode === 'IN'
+                        ? 'bg-emerald-100 text-[#164734] border border-emerald-300'
+                        : 'bg-amber-100 text-amber-900 border border-amber-300'
+                    }`}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>
+                      {lastScannedResult.mode === 'IN'
+                        ? 'Checked IN Successfully'
+                        : 'Checked OUT Successfully'}
+                    </span>
+                  </span>
+
+                  <span className="text-[10px] font-mono text-[#69756F]">
+                    {lastScannedResult.timestamp}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                  <h3 className="text-lg sm:text-xl font-bold text-[#1A221E] leading-tight">
+                    {lastScannedResult.invitee.full_name}
+                  </h3>
+                  <span className="font-mono font-bold text-xs bg-white text-[#164734] px-2.5 py-0.5 rounded-lg border border-[#C5DEC8] shadow-2xs">
+                    {lastScannedResult.invitee.invitee_code}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2.5 text-xs text-[#526058] flex-wrap pt-0.5">
+                  <StatusBadge
+                    variant={
+                      lastScannedResult.invitee.category === 'Founder Members'
+                        ? 'founder'
+                        : lastScannedResult.invitee.category === 'General Members'
+                        ? 'general'
+                        : 'special'
+                    }
+                    label={lastScannedResult.invitee.category}
+                    size="sm"
+                  />
+                  <span>•</span>
+                  <span className="flex items-center gap-1 font-medium">
+                    <MapPin className="h-3 w-3 text-[#69756F]" />
+                    {lastScannedResult.invitee.city}, {lastScannedResult.invitee.state}
+                  </span>
+                  {lastScannedResult.invitee.phone && (
+                    <>
+                      <span>•</span>
+                      <span className="flex items-center gap-1 text-[#69756F]">
+                        <Phone className="h-3 w-3" />
+                        {lastScannedResult.invitee.phone}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                <p className="text-xs text-[#69756F] pt-1">
+                  Attendance recorded by{' '}
+                  <strong className="text-[#1A221E] font-semibold">
+                    {currentUser?.full_name?.split('(')[0].trim() || 'Volunteer'}
+                  </strong>{' '}
+                  • Invitee is now{' '}
+                  <strong
+                    className={
+                      lastScannedResult.mode === 'IN'
+                        ? 'text-emerald-700 font-bold'
+                        : 'text-amber-700 font-bold'
+                    }
+                  >
+                    {lastScannedResult.mode === 'IN' ? 'INSIDE the venue' : 'OUTSIDE the venue'}
+                  </strong>
+                  .
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Actions for Next Scan */}
+            <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 self-stretch sm:self-auto justify-end pt-2 md:pt-0 border-t md:border-t-0 border-[#E3E7E4]">
+              <Button
+                onClick={() => {
+                  setScannerMode(lastScannedResult.mode);
+                  setIsScannerOpen(true);
+                }}
+                className={`flex-1 sm:flex-initial h-11 px-5 text-xs sm:text-sm font-bold text-white shadow-sm flex items-center justify-center gap-2 ${
+                  lastScannedResult.mode === 'IN'
+                    ? 'bg-[#164734] hover:bg-[#113829]'
+                    : 'bg-amber-600 hover:bg-amber-700'
+                }`}
+              >
+                <QrCode className="h-4 w-4" />
+                <span>Scan Next / Scan Another Invitee</span>
+              </Button>
+
+              <button
+                type="button"
+                onClick={() => setLastScannedResult(null)}
+                title="Dismiss Confirmation"
+                className="p-2.5 text-[#69756F] hover:text-[#1A221E] hover:bg-black/5 rounded-xl transition-colors shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -706,7 +849,13 @@ export const ReceptionDashboard: React.FC = () => {
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
         initialMode={scannerMode}
-        onScanComplete={() => {
+        onScanComplete={(invitee, record, mode) => {
+          setLastScannedResult({
+            invitee,
+            record,
+            mode,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          });
           loadData();
         }}
       />

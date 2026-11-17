@@ -45,13 +45,12 @@ export const InviteeIDCard: React.FC<InviteeIDCardProps> = ({
   const cat = getCategoryDetails(invitee.category);
   const qrValue = invitee.qr_token || invitee.id;
 
-  // Controlled font size for delegate name based on string length
-  const nameLength = invitee.full_name.length;
-  const nameFontSize = nameLength > 28 ? '10pt' : nameLength > 20 ? '11pt' : '12pt';
+  // Controlled font size for delegate name based on string length (13-14pt bold)
+  const nameLength = invitee.full_name?.length || 0;
+  const nameFontSize = nameLength > 28 ? '11.5pt' : nameLength > 18 ? '13pt' : '14pt';
 
-  // Guaranteed remarks string (ALWAYS visible on both mobile and laptop)
-  const rawRemarks = (invitee.id_card_remarks || '').trim();
-  const displayRemarks = rawRemarks || 'Official Delegate • Annual Session Access';
+  // Dedicated remarks: display only the actual remarks string without prefix; hide if empty
+  const displayRemarks = (invitee.id_card_remarks || '').trim();
 
   return (
     <div
@@ -309,14 +308,14 @@ export const InviteeIDCard: React.FC<InviteeIDCardProps> = ({
           </span>
         </div>
 
-        {/* 9. QR Code with Clear Description Labels (Enlarged 35mm Target in 39mm container) */}
+        {/* 9. QR Code with Clear Description Labels (Enlarged 40mm Target in 44mm container) */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            margin: '0.5mm 0',
+            margin: '0.4mm 0',
           }}
         >
           <div
@@ -328,21 +327,21 @@ export const InviteeIDCard: React.FC<InviteeIDCardProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: '39mm',
-              height: '39mm',
+              width: '44mm',
+              height: '44mm',
               boxSizing: 'border-box',
               boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
             }}
           >
             <QRCodeView
               value={qrValue}
-              size={320}
-              style={{ width: '35mm', height: '35mm', display: 'block' }}
+              size={360}
+              style={{ width: '40mm', height: '40mm', display: 'block' }}
             />
           </div>
 
           {/* Clear QR Purpose Description */}
-          <div style={{ marginTop: '0.8mm', textAlign: 'center' }}>
+          <div style={{ marginTop: '0.6mm', textAlign: 'center' }}>
             <div
               style={{
                 color: '#164734',
@@ -380,9 +379,7 @@ export const InviteeIDCard: React.FC<InviteeIDCardProps> = ({
             alignItems: 'center',
             justifyContent: 'center',
             gap: '2.5mm',
-            fontSize: '6.6pt',
-            fontWeight: 600,
-            color: '#374151',
+            color: '#1A221E',
             fontFamily: "'Inter', sans-serif",
             marginTop: '0.3mm',
           }}
@@ -392,58 +389,66 @@ export const InviteeIDCard: React.FC<InviteeIDCardProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '0.8mm',
-              maxWidth: '46mm',
+              fontSize: '8pt',
+              fontWeight: 700,
+              maxWidth: '52mm',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
             }}
           >
-            <MapPin style={{ width: '2.4mm', height: '2.4mm', color: '#164734', flexShrink: 0 }} />
+            <MapPin style={{ width: '2.8mm', height: '2.8mm', color: '#164734', flexShrink: 0 }} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {invitee.city}, {invitee.state}
             </span>
           </span>
-          <span style={{ color: '#D1D5DB' }}>•</span>
-          <span
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.8mm',
-              fontFamily: "'SFMono-Regular', Consolas, monospace",
-              flexShrink: 0,
-            }}
-          >
-            <Phone style={{ width: '2.4mm', height: '2.4mm', color: '#164734', flexShrink: 0 }} />
-            <span>{invitee.phone}</span>
-          </span>
+          {invitee.phone && (
+            <>
+              <span style={{ color: '#D1D5DB' }}>•</span>
+              <span
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.8mm',
+                  fontSize: '6.8pt',
+                  fontWeight: 600,
+                  fontFamily: "'SFMono-Regular', Consolas, monospace",
+                  flexShrink: 0,
+                  color: '#374151',
+                }}
+              >
+                <Phone style={{ width: '2.4mm', height: '2.4mm', color: '#164734', flexShrink: 0 }} />
+                <span>{invitee.phone}</span>
+              </span>
+            </>
+          )}
         </div>
 
-        {/* 11. DEDICATED REMARKS SECTION (Guaranteed to ALWAYS appear on mobile & laptop) */}
-        <div
-          style={{
-            width: '100%',
-            maxWidth: '83mm',
-            backgroundColor: '#FEF3C7',
-            border: '0.35mm solid #FDE68A',
-            borderRadius: '2.5mm',
-            padding: '1.1mm 2.2mm',
-            fontSize: '6.2pt',
-            fontWeight: 600,
-            color: '#78350F',
-            lineHeight: 1.25,
-            textAlign: 'center',
-            wordBreak: 'break-word',
-            whiteSpace: 'normal',
-            boxSizing: 'border-box',
-            fontFamily: "'Inter', sans-serif",
-            marginTop: '0.6mm',
-          }}
-        >
-          <span style={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-            REMARKS:{' '}
-          </span>
-          <span>{displayRemarks}</span>
-        </div>
+        {/* 11. DEDICATED REMARKS SECTION (Rendered only when remarks exist, without prefix) */}
+        {displayRemarks ? (
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '83mm',
+              backgroundColor: '#FEF3C7',
+              border: '0.35mm solid #FDE68A',
+              borderRadius: '2.5mm',
+              padding: '1.1mm 2.2mm',
+              fontSize: '6.4pt',
+              fontWeight: 600,
+              color: '#78350F',
+              lineHeight: 1.25,
+              textAlign: 'center',
+              wordBreak: 'break-word',
+              whiteSpace: 'normal',
+              boxSizing: 'border-box',
+              fontFamily: "'Inter', sans-serif",
+              marginTop: '0.4mm',
+            }}
+          >
+            <span>{displayRemarks}</span>
+          </div>
+        ) : null}
       </div>
 
       {/* Subtle bottom gold/green institutional footer line with matching rounded corners */}

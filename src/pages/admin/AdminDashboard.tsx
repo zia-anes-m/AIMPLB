@@ -18,6 +18,7 @@ import {
   LogOut,
   QrCode,
   CreditCard,
+  AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -58,9 +59,11 @@ export const AdminDashboard: React.FC = () => {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<EventAttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
+      setError(null);
       const [inv, tr, acc, fd, rec, hl, aud, att] = await Promise.all([
         getInvitees(),
         getTransportationRecords(),
@@ -80,8 +83,9 @@ export const AdminDashboard: React.FC = () => {
       setHalls(hl);
       setAuditLogs(aud);
       setAttendanceRecords(att);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error loading admin overview:', err);
+      setError(err?.message || 'Failed to load system data from Supabase.');
     } finally {
       setIsLoading(false);
     }
@@ -282,6 +286,27 @@ export const AdminDashboard: React.FC = () => {
           </div>
         }
       />
+
+      {/* Database Error Banner */}
+      {error && (
+        <div
+          role="alert"
+          className="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in shadow-xs"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertCircle className="h-5 w-5 shrink-0 text-red-600" />
+            <span className="font-medium truncate">{error}</span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="self-start sm:self-center shrink-0 border-red-300 text-red-700 hover:bg-red-100 h-8"
+            onClick={() => loadData()}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
 
       {/* PHASE 4: Live Event Venue Occupancy & Telemetry Dashboard */}
       <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E3E7E4] shadow-card-subtle space-y-3.5">

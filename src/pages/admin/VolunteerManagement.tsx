@@ -18,8 +18,9 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { MobileDataCard } from '@/components/common/MobileDataCard';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
+import { EmptyState } from '@/components/common/EmptyState';
 import { UserProfile, UserRole } from '@/types';
-import { getProfiles, createVolunteer, updateVolunteer } from '@/services/api';
+import { getProfiles, createVolunteer, updateVolunteer, resetVolunteerPassword } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { formatDate } from '@/lib/utils';
@@ -45,13 +46,16 @@ export const VolunteerManagement: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
+      setLoadError(null);
       const data = await getProfiles();
       setProfiles(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching volunteer profiles:', err);
+      setLoadError(err?.message || 'Failed to load volunteer accounts from Supabase.');
     } finally {
       setIsLoading(false);
     }
@@ -107,6 +111,7 @@ export const VolunteerManagement: React.FC = () => {
           username: username.trim().toLowerCase(),
           role,
           department,
+          password: newPassword,
         },
         currentUser
       );
@@ -155,6 +160,10 @@ export const VolunteerManagement: React.FC = () => {
     setError(null);
 
     try {
+      if (!newPassword || newPassword.length < 6) {
+        throw new Error('New password must be at least 6 characters long.');
+      }
+      await resetVolunteerPassword(selectedProfile.id, newPassword, currentUser);
       toast.success(
         'Password Reset Complete',
         `New credentials assigned to ${selectedProfile.full_name}.`
@@ -201,6 +210,27 @@ export const VolunteerManagement: React.FC = () => {
           </Button>
         }
       />
+
+      {/* Database Error Banner */}
+      {loadError && (
+        <div
+          role="alert"
+          className="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in shadow-xs"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertCircle className="h-5 w-5 shrink-0 text-red-600" />
+            <span className="font-medium truncate">{loadError}</span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="self-start sm:self-center shrink-0 border-red-300 text-red-700 hover:bg-red-100 h-8"
+            onClick={() => loadData()}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="bg-white p-3.5 rounded-xl border border-[#E3E7E4] shadow-card-subtle flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
@@ -262,6 +292,16 @@ export const VolunteerManagement: React.FC = () => {
       {/* Main Content Area */}
       {isLoading ? (
         <LoadingSkeleton rows={6} />
+      ) : filteredProfiles.length === 0 ? (
+        <EmptyState
+          title="No volunteer accounts found"
+          description="No volunteer records match your criteria. Create a volunteer account to assign responsibilities."
+          actionLabel="Create Volunteer Account"
+          onAction={() => {
+            setError(null);
+            setIsCreateOpen(true);
+          }}
+        />
       ) : (
         <>
           {/* Mobile Cards View */}

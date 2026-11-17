@@ -1,13 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { UserProfile, UserRole } from '@/types';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { getProfiles } from '@/services/api';
+import { supabase } from '@/lib/supabase';
 import { safeStorage } from '@/lib/safeStorage';
 
 interface AuthContextType {
   currentUser: UserProfile | null;
   isLoading: boolean;
-  login: (userId: string, password: string) => Promise<{ success: boolean; user?: UserProfile; error?: string }>;
+  login: (identifier: string, password: string) => Promise<{ success: boolean; user?: UserProfile; error?: string }>;
   logout: () => Promise<void>;
   switchRole: (role: UserRole) => Promise<void>;
   isAdmin: boolean;
@@ -23,80 +22,223 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Initialize session
+  // Initialize and synchronize authentication session strictly via Supabase Auth
   useEffect(() => {
+    let isMounted = true;
+
     async function initSession() {
       try {
-        if (isSupabaseConfigured) {
-          const { data } = await supabase.auth.getSession();
-          if (data.session?.user) {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', data.session.user.id)
-              .single();
-            if (profile && profile.is_active) {
-              setCurrentUser(profile as UserProfile);
-              setIsLoading(false);
-              return;
-            }
+        // Query official Supabase Auth session (never restore from raw localStorage)
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError || !session?.user) {
+          if (isMounted) {
+            setCurrentUser(null);
+            safeStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+            setIsLoading(false);
           }
+          return;
         }
 
-        // Fallback to local session
-        const saved = safeStorage.getItem(CURRENT_USER_STORAGE_KEY);
-        if (saved) {
-          const user = JSON.parse(saved) as UserProfile;
-          if (user.is_active) {
-            setCurrentUser(user);
+        // Fetch verified profile from public.profiles table using auth.user.id = profiles.id
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (isMounted) {
+          if (!profileError && profile && profile.is_active) {
+            const userProfile = profile as UserProfile;
+            setCurrentUser(userProfile);
+            safeStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(userProfile));
           } else {
+            if (profileError) {
+              console.warn('[Auth] Session profile query returned error:', profileError);
+            }
+            // Profile does not exist or is deactivated - terminate session
+            await supabase.auth.signOut();
+            setCurrentUser(null);
             safeStorage.removeItem(CURRENT_USER_STORAGE_KEY);
           }
         }
       } catch (err) {
-        console.error('Failed to restore session:', err);
+        console.error('Session initialization error:', err);
+        if (isMounted) {
+          setCurrentUser(null);
+          safeStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     }
 
     initSession();
+
+    // Listen to real-time auth state events from Supabase
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') && session?.user) {
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+          if (isMounted) {
+            if (!error && profile && profile.is_active) {
+              const userProfile = profile as UserProfile;
+              setCurrentUser(userProfile);
+              safeStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(userProfile));
+            } else {
+              if (error) {
+                console.warn('[Auth] AuthStateChange profile query returned error:', error);
+              }
+              setCurrentUser(null);
+              safeStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+            }
+            setIsLoading(false);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          if (isMounted) {
+            setCurrentUser(null);
+            safeStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+            setIsLoading(false);
+          }
+        }
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = useCallback(
     async (
-      userId: string,
+      identifierInput: string,
       password: string
     ): Promise<{ success: boolean; user?: UserProfile; error?: string }> => {
       setIsLoading(true);
       try {
-        const cleanId = userId.trim().toLowerCase();
+        const identifier = identifierInput.trim();
+        if (!identifier || !password) {
+          setIsLoading(false);
+          return { success: false, error: 'Please enter both your username/email and password.' };
+        }
 
-        // If Supabase is connected, attempt auth sign in
-        if (isSupabaseConfigured) {
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email: cleanId.includes('@') ? cleanId : `${cleanId}@aimplb.org`,
+        // 1. Direct email authentication if input contains '@'
+        if (identifier.includes('@')) {
+          const email = identifier.toLowerCase();
+          const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+            email,
             password,
           });
 
-          if (error) {
-            // If Supabase auth failed, also check local demo profiles if in hybrid mode
-            console.warn('Supabase auth error:', error.message);
-          } else if (data.user) {
+          if (authError || !authData?.user) {
+            setIsLoading(false);
+            const rawMsg = authError?.message || '';
+            const userFriendlyError = rawMsg.toLowerCase().includes('invalid login credentials')
+              ? 'Invalid email address or password. Please verify your credentials.'
+              : (rawMsg || 'Authentication failed. Please check your credentials.');
+            return { success: false, error: userFriendlyError };
+          }
+
+          console.log('[Auth] Direct Supabase Auth sign-in successful. User UID:', authData.user.id);
+
+          const { data: profile, error: pError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', authData.user.id)
+            .single();
+
+          if (pError || !profile) {
+            console.error('[Auth] Failed to load user profile from public.profiles:', pError);
+            await supabase.auth.signOut();
+            setIsLoading(false);
+            return {
+              success: false,
+              error: 'Authorized user profile not found in database. Contact Secretariat Admin.',
+            };
+          }
+
+          if (!profile.is_active) {
+            await supabase.auth.signOut();
+            setIsLoading(false);
+            return {
+              success: false,
+              error: 'Your account has been deactivated. Contact Secretariat Admin.',
+            };
+          }
+
+          const userProfile = profile as UserProfile;
+          setCurrentUser(userProfile);
+          safeStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(userProfile));
+          setIsLoading(false);
+          return { success: true, user: userProfile };
+        }
+
+        // 2. Primary: Username authentication via admin-users Edge Function
+        try {
+          const { data: edgeData, error: edgeError } = await supabase.functions.invoke('admin-users', {
+            body: {
+              action: 'login',
+              username: identifier,
+              password,
+            },
+          });
+
+          if (!edgeError && edgeData?.session && edgeData?.profile) {
+            await supabase.auth.setSession({
+              access_token: edgeData.session.access_token,
+              refresh_token: edgeData.session.refresh_token,
+            });
+
+            const userProfile = edgeData.profile as UserProfile;
+            setCurrentUser(userProfile);
+            safeStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(userProfile));
+            setIsLoading(false);
+            return { success: true, user: userProfile };
+          }
+        } catch (edgeErr) {
+          console.warn('[Auth] Edge Function login invocation error:', edgeErr);
+        }
+
+        // 3. Resilient Fallback: Resolve username via secure PostgreSQL RPC & direct Supabase Auth
+        try {
+          const { data: resolvedEmail, error: rpcErr } = await supabase.rpc('resolve_username_to_auth_email', {
+            p_username: identifier,
+          });
+
+          if (!rpcErr && resolvedEmail) {
+            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+              email: resolvedEmail,
+              password,
+            });
+
+            if (authError || !authData?.user) {
+              setIsLoading(false);
+              return { success: false, error: 'Invalid username or password. Please verify your credentials.' };
+            }
+
             const { data: profile, error: pError } = await supabase
               .from('profiles')
               .select('*')
-              .eq('id', data.user.id)
+              .eq('id', authData.user.id)
               .single();
 
-            if (pError || !profile) {
+            if (pError || !profile || !profile.is_active) {
+              await supabase.auth.signOut();
               setIsLoading(false);
-              return { success: false, error: 'User profile not found in database.' };
-            }
-
-            if (!profile.is_active) {
-              setIsLoading(false);
-              return { success: false, error: 'Your volunteer account is currently disabled. Contact Admin.' };
+              return {
+                success: false,
+                error: !profile?.is_active
+                  ? 'Your account has been deactivated. Contact Secretariat Admin.'
+                  : 'Authorized user profile not found in database. Contact Secretariat Admin.',
+              };
             }
 
             const userProfile = profile as UserProfile;
@@ -105,67 +247,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setIsLoading(false);
             return { success: true, user: userProfile };
           }
+        } catch (rpcFallbackErr) {
+          console.warn('[Auth] RPC username fallback error:', rpcFallbackErr);
         }
 
-        // Check local profiles (matching by username or full name or default password)
-        const allProfiles = await getProfiles();
-        const matched = allProfiles.find(
-          (p) =>
-            p.username.toLowerCase() === cleanId ||
-            p.full_name.toLowerCase().includes(cleanId) ||
-            p.role.toLowerCase().replace(/\s+/g, '_') === cleanId
-        );
-
-        if (!matched) {
-          setIsLoading(false);
-          return {
-            success: false,
-            error: 'Invalid User ID. Please check your assigned volunteer username or email.',
-          };
-        }
-
-        if (!matched.is_active) {
-          setIsLoading(false);
-          return {
-            success: false,
-            error: 'Your volunteer account has been deactivated. Please contact the Secretariat Admin.',
-          };
-        }
-
-        // In demo mode or if default credentials used
-        setCurrentUser(matched);
-        safeStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(matched));
         setIsLoading(false);
-        return { success: true, user: matched };
+        return { success: false, error: 'Invalid username or password. Please verify your credentials.' };
       } catch (err: any) {
         setIsLoading(false);
-        return { success: false, error: err.message || 'An error occurred during sign-in.' };
+        return { success: false, error: err.message || 'An unexpected error occurred during sign-in.' };
       }
     },
     []
   );
 
   const logout = useCallback(async () => {
+    setIsLoading(true);
     try {
-      if (isSupabaseConfigured) {
-        await supabase.auth.signOut();
-      }
+      await supabase.auth.signOut();
     } catch (err) {
       console.warn('Sign out error:', err);
     } finally {
       setCurrentUser(null);
       safeStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+      setIsLoading(false);
     }
   }, []);
 
-  // Quick switcher for demo and testing all 6 department workflows
-  const switchRole = useCallback(async (targetRole: UserRole) => {
-    const allProfiles = await getProfiles();
-    const targetProfile = allProfiles.find((p) => p.role === targetRole);
-    if (targetProfile && targetProfile.is_active) {
-      setCurrentUser(targetProfile);
-      safeStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(targetProfile));
-    }
+  // Preserved for interface compatibility (disabled in production - users cannot bypass their assigned role)
+  const switchRole = useCallback(async (_targetRole: UserRole) => {
+    console.warn('Role switching is disabled. User roles are strictly enforced from your authenticated Supabase profile.');
   }, []);
 
   const isAdmin = currentUser?.role === 'Admin';
@@ -187,7 +298,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       case 'Meeting Hall Team':
         return '/meeting-hall/dashboard';
       default:
-        return '/login';
+        return '/';
     }
   }, [currentUser?.role]);
 
@@ -219,4 +330,3 @@ export const useAuth = () => {
   }
   return context;
 };
-

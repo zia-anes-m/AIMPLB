@@ -20,7 +20,7 @@ export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser, login, logout, getDashboardRoute } = useAuth();
 
-  const [userId, setUserId] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,9 +32,9 @@ export const LandingPage: React.FC = () => {
     if (isLoading) return;
     setError(null);
 
-    const trimmedId = userId.trim();
-    if (!trimmedId) {
-      setError('Please enter your assigned User ID or email.');
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) {
+      setError('Please enter your username.');
       return;
     }
 
@@ -45,7 +45,7 @@ export const LandingPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const res = await login(trimmedId, password);
+      const res = await login(trimmedUsername, password);
       if (res.success && res.user) {
         navigate(getDashboardRoute(res.user.role), { replace: true });
       } else if (res.success) {
@@ -176,10 +176,10 @@ export const LandingPage: React.FC = () => {
               <div>
                 <div className="mb-6 pb-4 border-b border-[#F4F6F4] text-center">
                   <h3 className="text-sm font-bold uppercase tracking-wider text-[#1A221E]">
-                    Authorized Volunteer Sign In
+                    Authorized Sign In
                   </h3>
                   <p className="text-xs text-[#69756F] mt-1">
-                    Enter your assigned username to access your department
+                    Enter your username and password to access the portal
                   </p>
                 </div>
 
@@ -200,19 +200,20 @@ export const LandingPage: React.FC = () => {
                   >
                     <ShieldCheck className="h-4 w-4 shrink-0 text-[#164734] mt-0.5" />
                     <span>
-                      To reset volunteer credentials, contact the Chief Event Coordinator at the Central Secretariat desk.
+                      To reset credentials, contact the Chief Event Coordinator at the Central Secretariat desk.
                     </span>
                   </div>
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <Input
-                    id="userId"
-                    label="User ID / Volunteer Username"
+                    id="username"
+                    type="text"
+                    label="Username"
                     required
-                    value={userId}
-                    onChange={(e) => setUserId(e.target.value)}
-                    placeholder="e.g. admin or transport_team"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Enter your username"
                     icon={<User className="h-4 w-4" />}
                   />
 

@@ -9,12 +9,14 @@ import {
   LayoutGrid,
   List,
   Sparkles,
+  AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/common/PageHeader';
 import { MobileDataCard } from '@/components/common/MobileDataCard';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
+import { EmptyState } from '@/components/common/EmptyState';
 import { Dialog } from '@/components/ui/dialog';
 import { getAuditLogs } from '@/services/api';
 import { AuditLog } from '@/types';
@@ -23,23 +25,28 @@ import { formatDateTime } from '@/lib/utils';
 export const AuditLogsPage: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [tableFilter, setTableFilter] = useState('all');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [viewMode, setViewMode] = useState<'auto' | 'cards' | 'table'>('auto');
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const data = await getAuditLogs();
-        setLogs(data);
-      } catch (err) {
-        console.error('Error loading audit trail:', err);
-      } finally {
-        setIsLoading(false);
-      }
+  const loadData = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await getAuditLogs();
+      setLogs(data);
+    } catch (err: any) {
+      console.error('Error loading audit trail:', err);
+      setError(err?.message || 'Failed to load audit logs from Supabase.');
+    } finally {
+      setIsLoading(false);
     }
-    load();
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
 
   const filteredLogs = logs.filter((log) => {
@@ -75,6 +82,27 @@ export const AuditLogsPage: React.FC = () => {
         subtitle="Immutable historical log of all database modifications, user actions, and sensitive profile edits"
         badge={`${logs.length} Logged Events`}
       />
+
+      {/* Database Error Banner */}
+      {error && (
+        <div
+          role="alert"
+          className="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in shadow-xs"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertCircle className="h-5 w-5 shrink-0 text-red-600" />
+            <span className="font-medium truncate">{error}</span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="self-start sm:self-center shrink-0 border-red-300 text-red-700 hover:bg-red-100 h-8"
+            onClick={() => loadData()}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="bg-white p-3.5 rounded-xl border border-[#E3E7E4] shadow-card-subtle flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
@@ -151,6 +179,11 @@ export const AuditLogsPage: React.FC = () => {
       {/* Main View Area */}
       {isLoading ? (
         <LoadingSkeleton rows={8} />
+      ) : filteredLogs.length === 0 ? (
+        <EmptyState
+          title="No audit events found"
+          description="No security or change events match your criteria. Operations performed in the system are automatically recorded here."
+        />
       ) : (
         <>
           {/* Mobile Cards View */}

@@ -23,6 +23,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
     );
   }
 
+  // Must have an authenticated, active Supabase user profile; redirect unauthenticated users to Landing Page
   if (!currentUser) {
     return <Navigate to="/" state={{ from: location }} replace />;
   }
@@ -43,4 +44,3 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
 
   return <>{children}</>;
 };
-

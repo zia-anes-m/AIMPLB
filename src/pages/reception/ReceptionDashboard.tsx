@@ -13,6 +13,7 @@ import {
   LogIn,
   QrCode,
   Edit2,
+  AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -44,6 +45,7 @@ export const ReceptionDashboard: React.FC = () => {
   const [invitees, setInvitees] = useState<Invitee[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<EventAttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [viewMode, setViewMode] = useState<'auto' | 'cards' | 'table'>('auto');
 
@@ -60,14 +62,16 @@ export const ReceptionDashboard: React.FC = () => {
 
   const loadData = useCallback(async () => {
     try {
+      setError(null);
       const [invs, atts] = await Promise.all([
         getInvitees(),
         getEventAttendanceRecords(),
       ]);
       setInvitees(invs);
       setAttendanceRecords(atts);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error loading gate reception data:', err);
+      setError(err?.message || 'Failed to load reception records from Supabase.');
     } finally {
       setIsLoading(false);
     }
@@ -248,6 +252,27 @@ export const ReceptionDashboard: React.FC = () => {
           </div>
         }
       />
+
+      {/* Database Error Banner */}
+      {error && (
+        <div
+          role="alert"
+          className="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in shadow-xs"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertCircle className="h-5 w-5 shrink-0 text-red-600" />
+            <span className="font-medium truncate">{error}</span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="self-start sm:self-center shrink-0 border-red-300 text-red-700 hover:bg-red-100 h-8"
+            onClick={() => loadData()}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
 
       {/* Prominent Quick-Action Scanning Banner */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 bg-gradient-to-r from-[#164734] via-[#1b563f] to-[#0D281D] p-3.5 sm:p-4 rounded-2xl text-white shadow-md">

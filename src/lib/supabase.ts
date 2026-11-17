@@ -1,11 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl =
+  import.meta.env.VITE_SUPABASE_URL ||
+  import.meta.env.SUPABASE_URL ||
+  'https://mthujorxbhrfmicmbvch.supabase.co';
+
+const supabaseAnonKey =
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  import.meta.env.SUPABASE_PUBLISHABLE_KEY ||
+  'sb_publishable_yRimmzR_4DHqFi0ayo_X2g_1aNOrqj6';
 
 export const isSupabaseConfigured = Boolean(
-  supabaseUrl && 
-  supabaseAnonKey && 
+  supabaseUrl &&
+  supabaseAnonKey &&
   supabaseUrl !== 'https://your-project-id.supabase.co' &&
   !supabaseUrl.includes('placeholder')
 );
@@ -16,8 +24,8 @@ const effectiveKey = isSupabaseConfigured ? supabaseAnonKey : 'placeholder-anon-
 
 export const supabase = createClient(effectiveUrl, effectiveKey, {
   auth: {
-    persistSession: isSupabaseConfigured,
-    autoRefreshToken: isSupabaseConfigured,
-    detectSessionInUrl: isSupabaseConfigured,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
   },
 });

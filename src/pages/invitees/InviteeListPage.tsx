@@ -12,6 +12,8 @@ import {
   LayoutGrid,
   List,
   Sparkles,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -36,6 +38,7 @@ export const InviteeListPage: React.FC = () => {
 
   const [invitees, setInvitees] = useState<Invitee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'auto' | 'cards' | 'table'>('auto');
@@ -47,13 +50,15 @@ export const InviteeListPage: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Stable data loader that runs on mount and refreshes silently on changes
-  // Never sets isLoading back to true, preventing flickering/blinking
+  // Never sets isLoading back to true on background refetch, preventing flickering
   const loadData = useCallback(async () => {
     try {
+      setError(null);
       const data = await getInvitees();
       setInvitees(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching invitees:', err);
+      setError(err?.message || 'Failed to load invitees from Supabase.');
     } finally {
       setIsLoading(false);
     }
@@ -214,6 +219,31 @@ export const InviteeListPage: React.FC = () => {
           </div>
         }
       />
+
+      {/* Database Connection / RLS Error Banner */}
+      {error && (
+        <div
+          role="alert"
+          className="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in shadow-xs"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertCircle className="h-5 w-5 shrink-0 text-red-600" />
+            <span className="font-medium truncate">{error}</span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setIsLoading(true);
+              loadData();
+            }}
+            className="border-red-300 text-red-800 hover:bg-red-100 shrink-0 text-xs h-8 px-3"
+          >
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+            Retry
+          </Button>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="bg-white p-3.5 rounded-xl border border-[#E3E7E4] shadow-card-subtle flex flex-col md:flex-row gap-2.5 sm:gap-3 items-stretch md:items-center justify-between">

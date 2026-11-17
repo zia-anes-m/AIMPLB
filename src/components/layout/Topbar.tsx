@@ -1,7 +1,6 @@
 import React from 'react';
-import { Menu, MapPin, Calendar, Database, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Menu, MapPin, Calendar, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { isSupabaseConfigured } from '@/lib/supabase';
 import { Logo } from '@/components/common/Logo';
 
 interface TopbarProps {
@@ -68,34 +67,8 @@ export const Topbar: React.FC<TopbarProps> = ({
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-        {/* Database Status Indicator */}
-        <div
-          className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-medium border transition-colors ${
-            isSupabaseConfigured
-              ? 'bg-[#E8F1EC] text-[#164734] border-[#C5DEC8]'
-              : 'bg-[#FFFBEB] text-[#936E22] border-[#FDE68A]'
-          }`}
-          title={
-            isSupabaseConfigured
-              ? 'Connected to live Supabase PostgreSQL'
-              : 'Interactive Store: configure Supabase in .env for live cloud sync'
-          }
-        >
-          <span className="flex h-2 w-2 items-center justify-center">
-            <span
-              className={`inline-flex rounded-full h-2 w-2 ${
-                isSupabaseConfigured ? 'bg-emerald-600' : 'bg-amber-500'
-              }`}
-            />
-          </span>
-          <Database className="h-3 w-3 shrink-0 hidden sm:inline" />
-          <span className="font-semibold">
-            {isSupabaseConfigured ? 'Supabase Live' : 'Demo Store'}
-          </span>
-        </div>
-
         {/* User Pill */}
-        <div className="flex items-center gap-2 pl-1.5 sm:pl-2 border-l border-[#E3E7E4]">
+        <div className="flex items-center gap-2">
           <div className="h-8 w-8 sm:h-8 sm:w-8 rounded-full bg-[#164734] text-white flex items-center justify-center font-bold text-xs uppercase shadow-xs shrink-0">
             {currentUser?.full_name?.charAt(0) || 'U'}
           </div>

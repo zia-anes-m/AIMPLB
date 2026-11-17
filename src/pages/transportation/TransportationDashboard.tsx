@@ -45,6 +45,7 @@ export const TransportationDashboard: React.FC = () => {
   const [records, setRecords] = useState<TransportationRecord[]>([]);
   const [invitees, setInvitees] = useState<Invitee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'auto' | 'cards' | 'table'>('auto');
 
   // Filters
@@ -62,14 +63,16 @@ export const TransportationDashboard: React.FC = () => {
 
   const loadData = useCallback(async () => {
     try {
+      setError(null);
       const [trans, inv] = await Promise.all([
         getTransportationRecords(),
         getInvitees(),
       ]);
       setRecords(trans);
       setInvitees(inv);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching transportation:', err);
+      setError(err?.message || 'Failed to load transportation records from Supabase.');
     } finally {
       setIsLoading(false);
     }
@@ -239,6 +242,27 @@ export const TransportationDashboard: React.FC = () => {
           </div>
         }
       />
+
+      {/* Database Error Banner */}
+      {error && (
+        <div
+          role="alert"
+          className="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in shadow-xs"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertCircle className="h-5 w-5 shrink-0 text-red-600" />
+            <span className="font-medium truncate">{error}</span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="self-start sm:self-center shrink-0 border-red-300 text-red-700 hover:bg-red-100 h-8"
+            onClick={() => loadData()}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
 
       {/* Real Computed Statistical Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-2.5">

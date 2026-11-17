@@ -17,54 +17,9 @@ import {
   MeetingAttendanceRecord,
   UnifiedActivityEvent,
 } from '@/types';
-import {
-  INITIAL_PROFILES,
-  INITIAL_INVITEES,
-  INITIAL_TRANSPORTATION,
-  INITIAL_ACCOMMODATIONS,
-  INITIAL_FOOD,
-  INITIAL_RECEPTION,
-  INITIAL_MEETING_HALL,
-  INITIAL_AUDIT_LOGS,
-  INITIAL_SYSTEM_SETTINGS,
-  INITIAL_MEETING_ROOMS,
-  INITIAL_EVENT_ATTENDANCE,
-  INITIAL_MEETING_ATTENDANCE,
-} from '@/lib/mockData';
-
-// Storage keys for demo / local database persistence
-const STORAGE_KEYS = {
-  PROFILES: 'aimplb_db_profiles_v1',
-  INVITEES: 'aimplb_db_invitees_v1',
-  TRANSPORT: 'aimplb_db_transport_v1',
-  ACCOMMODATION: 'aimplb_db_accommodation_v1',
-  FOOD: 'aimplb_db_food_v1',
-  RECEPTION: 'aimplb_db_reception_v1',
-  MEETING_HALL: 'aimplb_db_meeting_hall_v1',
-  AUDIT: 'aimplb_db_audit_v1',
-  SETTINGS: 'aimplb_db_settings_v1',
-  EVENT_ATTENDANCE: 'aimplb_db_event_attendance_v1',
-  MEETING_ROOMS: 'aimplb_db_meeting_rooms_v1',
-  MEETING_ATTENDANCE: 'aimplb_db_meeting_attendance_v1',
-};
-
-// Local store helpers with lazy initialization
-function getLocalItem<T>(key: string, defaultData: T): T {
-  try {
-    const saved = safeStorage.getItem(key);
-    if (!saved) {
-      safeStorage.setItem(key, JSON.stringify(defaultData));
-      return defaultData;
-    }
-    return JSON.parse(saved);
-  } catch (err) {
-    console.error(`Error reading ${key} from storage:`, err);
-    return defaultData;
-  }
-}
 
 let dbUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
-function notifyDbUpdate(): void {
+export function notifyDbUpdate(): void {
   if (typeof window === 'undefined') return;
   if (dbUpdateTimeout) clearTimeout(dbUpdateTimeout);
   dbUpdateTimeout = setTimeout(() => {
@@ -72,38 +27,33 @@ function notifyDbUpdate(): void {
   }, 25);
 }
 
-function setLocalItem<T>(key: string, data: T): void {
-  try {
-    safeStorage.setItem(key, JSON.stringify(data));
-    // Trigger debounced event so reactive components update smoothly without flood
-    notifyDbUpdate();
-  } catch (err) {
-    console.error(`Error writing ${key} to storage:`, err);
-  }
-}
-
-// Global audit logger helper
-function recordLocalAudit(
-  user: UserProfile | null,
+// -------------------------------------------------------------
+// AUDIT LOG SERVICE
+// -------------------------------------------------------------
+export async function recordAuditLog(
+  user: UserProfile | null | undefined,
   action: string,
-  table_name: string,
-  record_id: string,
-  previous_data?: any,
-  new_data?: any
-) {
-  const audits = getLocalItem<AuditLog[]>(STORAGE_KEYS.AUDIT, INITIAL_AUDIT_LOGS);
-  const newLog: AuditLog = {
-    id: 'audit-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
-    user_id: user?.id || 'system',
-    user_name: user ? `${user.full_name} (${user.role})` : 'System',
-    action,
-    table_name,
-    record_id,
-    previous_data,
-    new_data,
-    created_at: new Date().toISOString(),
-  };
-  setLocalItem(STORAGE_KEYS.AUDIT, [newLog, ...audits]);
+  tableName: string,
+  recordId: string,
+  previousData?: any,
+  newData?: any
+): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  try {
+    await supabase.from('audit_logs').insert([
+      {
+        user_id: user?.id || null,
+        user_name: user?.full_name || null,
+        action,
+        table_name: tableName,
+        record_id: String(recordId),
+        previous_data: previousData ? JSON.parse(JSON.stringify(previousData)) : null,
+        new_data: newData ? JSON.parse(JSON.stringify(newData)) : null,
+      },
+    ]);
+  } catch (err) {
+    console.warn('[AuditLog] Non-critical audit logging failed:', err);
+  }
 }
 
 // -------------------------------------------------------------
@@ -157,87 +107,22 @@ export function generateSecureQrToken(inviteeIdOrCode: string): string {
   return `AIM-SEC-${clean}-${rand}`;
 }
 
-function migrateAndNormalizeInvitees(list: Invitee[]): Invitee[] {
-  let fCount = 0;
-  let gCount = 0;
-  let sCount = 0;
-
-  for (const inv of list) {
-    if (inv.invitee_code?.startsWith('AIM-F-')) {
-      const n = parseInt(inv.invitee_code.replace('AIM-F-', ''), 10);
-      if (!isNaN(n) && n > fCount) fCount = n;
-    } else if (inv.invitee_code?.startsWith('AIM-S-')) {
-      const n = parseInt(inv.invitee_code.replace('AIM-S-', ''), 10);
-      if (!isNaN(n) && n > sCount) sCount = n;
-    } else if (inv.invitee_code?.startsWith('AIM-G-')) {
-      const n = parseInt(inv.invitee_code.replace('AIM-G-', ''), 10);
-      if (!isNaN(n) && n > gCount) gCount = n;
-    }
-  }
-
-  let changed = false;
-  const normalized = list.map((inv) => {
-    let code = inv.invitee_code;
-    let token = inv.qr_token;
-
-    if (!code || code.startsWith('AIM-INV-')) {
-      changed = true;
-      if (inv.category === 'Founder Members') {
-        fCount += 1;
-        code = `AIM-F-${String(fCount).padStart(3, '0')}`;
-      } else if (inv.category === 'Special Invitees') {
-        sCount += 1;
-        code = `AIM-S-${String(sCount).padStart(3, '0')}`;
-      } else {
-        gCount += 1;
-        code = `AIM-G-${String(gCount).padStart(3, '0')}`;
-      }
-    }
-
-    if (!token) {
-      changed = true;
-      token = generateSecureQrToken(inv.id || code);
-    }
-
-    // Ensure id_card_remarks is properly populated from INITIAL_INVITEES or remarks
-    let idCardRemarks = inv.id_card_remarks;
-    if (!idCardRemarks) {
-      const match = INITIAL_INVITEES.find((init) => init.id === inv.id);
-      if (match?.id_card_remarks) {
-        idCardRemarks = match.id_card_remarks;
-        changed = true;
-      } else if (inv.remarks) {
-        idCardRemarks = inv.remarks;
-        changed = true;
-      }
-    }
-
-    return {
-      ...inv,
-      invitee_code: code,
-      qr_token: token,
-      id_card_remarks: idCardRemarks ?? null,
-    };
-  });
-
-  if (changed) {
-    setLocalItem(STORAGE_KEYS.INVITEES, normalized);
-  }
-
-  return normalized;
-}
-
 export async function getRawInvitees(): Promise<Invitee[]> {
-  if (isSupabaseConfigured) {
-    const { data, error } = await supabase
-      .from('invitees')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (!error && data) return migrateAndNormalizeInvitees(data as Invitee[]);
-    console.warn('Supabase query failed, falling back to local database:', error);
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Please check your environment variables.');
   }
-  const localList = getLocalItem<Invitee[]>(STORAGE_KEYS.INVITEES, INITIAL_INVITEES);
-  return migrateAndNormalizeInvitees(localList);
+
+  const { data, error } = await supabase
+    .from('invitees')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[InviteeService] Supabase SELECT failed:', error);
+    throw new Error(`Failed to load invitees from Supabase: ${error.message} (${error.code})`);
+  }
+
+  return (data || []) as Invitee[];
 }
 
 export async function getInvitees(): Promise<Invitee[]> {
@@ -250,41 +135,94 @@ export async function getInvitees(): Promise<Invitee[]> {
 }
 
 export async function getInviteeById(id: string): Promise<Invitee | null> {
-  const rawList = await getRawInvitees();
-  const found = rawList.find((i) => i.id === id) || null;
-  if (!found) return null;
-  const role = getCurrentSessionUserRole();
-  if (role === 'Admin') {
-    return found;
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured.');
   }
-  return redactInviteeForNonAdmin(found);
+
+  const { data, error } = await supabase
+    .from('invitees')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`[InviteeService] Supabase SELECT by ID failed (${id}):`, error);
+    throw new Error(`Failed to load invitee from Supabase: ${error.message}`);
+  }
+
+  if (!data) return null;
+  const role = getCurrentSessionUserRole();
+  return role === 'Admin' ? (data as Invitee) : redactInviteeForNonAdmin(data as Invitee);
+}
+
+/**
+ * Lightweight invitee lookup map designed for sub-module relational joins (transport, food, gate, etc.).
+ * Selects essential columns to eliminate bandwidth overhead during high-concurrency event operations.
+ */
+export async function getInviteeLookupMap(): Promise<Map<string, Invitee>> {
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured.');
+  }
+
+  const { data, error } = await supabase
+    .from('invitees')
+    .select('id, invitee_code, full_name, category, phone, alternate_phone, address, city, state, country, remarks, id_card_remarks, qr_token, created_by, created_at, updated_at');
+
+  if (error) {
+    console.warn('[InviteeService] Failed to load invitee lookup map, falling back to full list:', error);
+    const full = await getInvitees();
+    return new Map(full.map((i) => [i.id, i]));
+  }
+
+  return new Map(((data || []) as Invitee[]).map((i) => [i.id, i]));
 }
 
 export async function getInviteeByQrToken(token: string): Promise<Invitee | null> {
   const clean = token.trim();
   if (!clean) return null;
-  const invitees = await getRawInvitees();
-  const found =
-    invitees.find(
-      (i) =>
-        i.qr_token === clean ||
-        (i.invitee_code && i.invitee_code.toUpperCase() === clean.toUpperCase()) ||
-        i.id === clean
-    ) || null;
-  if (!found) return null;
-  const role = getCurrentSessionUserRole();
-  return role === 'Admin' ? found : redactInviteeForNonAdmin(found);
+  if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
+
+  // Check matching by qr_token first
+  const { data: byToken, error: tokenErr } = await supabase
+    .from('invitees')
+    .select('*')
+    .eq('qr_token', clean)
+    .maybeSingle();
+
+  if (!tokenErr && byToken) {
+    const role = getCurrentSessionUserRole();
+    return role === 'Admin' ? (byToken as Invitee) : redactInviteeForNonAdmin(byToken as Invitee);
+  }
+
+  // Fallback to checking by invitee_code
+  const { data: byCode } = await supabase
+    .from('invitees')
+    .select('*')
+    .ilike('invitee_code', clean)
+    .maybeSingle();
+
+  if (byCode) {
+    const role = getCurrentSessionUserRole();
+    return role === 'Admin' ? (byCode as Invitee) : redactInviteeForNonAdmin(byCode as Invitee);
+  }
+
+  return null;
 }
 
 export async function getInviteeByCode(code: string): Promise<Invitee | null> {
   const clean = code.trim().toUpperCase();
   if (!clean) return null;
-  const invitees = await getRawInvitees();
-  const found =
-    invitees.find((i) => (i.invitee_code && i.invitee_code.toUpperCase() === clean) || i.id === code) || null;
-  if (!found) return null;
+  if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
+
+  const { data, error } = await supabase
+    .from('invitees')
+    .select('*')
+    .ilike('invitee_code', clean)
+    .maybeSingle();
+
+  if (error || !data) return null;
   const role = getCurrentSessionUserRole();
-  return role === 'Admin' ? found : redactInviteeForNonAdmin(found);
+  return role === 'Admin' ? (data as Invitee) : redactInviteeForNonAdmin(data as Invitee);
 }
 
 export async function checkDuplicateInvitee(
@@ -292,19 +230,26 @@ export async function checkDuplicateInvitee(
   fullName: string,
   excludeId?: string
 ): Promise<{ isDuplicate: boolean; matchedBy: 'phone' | 'name' | null; existing?: Invitee }> {
-  const list = await getRawInvitees();
+  if (!isSupabaseConfigured) return { isDuplicate: false, matchedBy: null };
+
   const cleanPhone = phone.replace(/\D/g, '');
   const cleanName = fullName.trim().toLowerCase();
 
-  for (const inv of list) {
-    if (excludeId && inv.id === excludeId) continue;
+  let query = supabase.from('invitees').select('*');
+  if (excludeId) {
+    query = query.neq('id', excludeId);
+  }
 
-    const existingCleanPhone = inv.phone.replace(/\D/g, '');
+  const { data, error } = await query;
+  if (error || !data) return { isDuplicate: false, matchedBy: null };
+
+  for (const inv of data as Invitee[]) {
+    const existingCleanPhone = (inv.phone || '').replace(/\D/g, '');
     if (cleanPhone && existingCleanPhone && cleanPhone === existingCleanPhone) {
       return { isDuplicate: true, matchedBy: 'phone', existing: inv };
     }
 
-    if (cleanName && inv.full_name.trim().toLowerCase() === cleanName) {
+    if (cleanName && (inv.full_name || '').trim().toLowerCase() === cleanName) {
       return { isDuplicate: true, matchedBy: 'name', existing: inv };
     }
   }
@@ -316,39 +261,58 @@ export async function createInvitee(
   data: Omit<Invitee, 'id' | 'invitee_code' | 'created_at' | 'updated_at'>,
   user: UserProfile
 ): Promise<Invitee> {
-  const list = getLocalItem<Invitee[]>(STORAGE_KEYS.INVITEES, INITIAL_INVITEES);
-  const newCode = generateNextCategoryCode(data.category, list);
-  const qrToken = generateSecureQrToken(newCode);
-  const now = new Date().toISOString();
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot create invitee.');
+  }
+
+  const prefix = getCategoryPrefix(data.category);
+  const { data: latestCategoryInvitees } = await supabase
+    .from('invitees')
+    .select('invitee_code')
+    .ilike('invitee_code', `${prefix}%`)
+    .order('invitee_code', { ascending: false })
+    .limit(100);
+
+  let maxNum = 0;
+  if (latestCategoryInvitees && latestCategoryInvitees.length > 0) {
+    for (const item of latestCategoryInvitees) {
+      const num = parseInt(item.invitee_code.replace(prefix, ''), 10);
+      if (!isNaN(num) && num > maxNum) maxNum = num;
+    }
+  }
+  const nextCode = `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
+  const qrToken = generateSecureQrToken(nextCode);
 
   const payload = {
-    ...data,
-    invitee_code: newCode,
+    full_name: data.full_name.trim(),
+    category: data.category,
+    phone: data.phone.trim(),
+    alternate_phone: data.alternate_phone?.trim() || null,
+    address: data.address?.trim() || null,
+    city: data.city.trim(),
+    state: data.state.trim(),
+    country: data.country?.trim() || 'India',
+    remarks: data.remarks?.trim() || null,
+    id_card_remarks: data.id_card_remarks?.trim() || null,
+    invitee_code: nextCode,
     qr_token: qrToken,
-    id_card_remarks: data.id_card_remarks || null,
     created_by: user.id,
   };
 
-  if (isSupabaseConfigured) {
-    const { data: inserted, error } = await supabase
-      .from('invitees')
-      .insert([payload])
-      .select()
-      .single();
-    if (!error && inserted) return inserted as Invitee;
-    console.warn('Supabase insert failed, storing locally:', error);
+  const { data: inserted, error } = await supabase
+    .from('invitees')
+    .insert([payload])
+    .select()
+    .single();
+
+  if (error || !inserted) {
+    console.error('[InviteeService] Supabase INSERT failed:', error);
+    throw new Error(`Failed to create invitee in Supabase: ${error?.message || 'Database error'} (${error?.code || 'ERR'})`);
   }
 
-  const newInvitee: Invitee = {
-    ...payload,
-    id: 'inv-' + Date.now(),
-    created_at: now,
-    updated_at: now,
-  };
-
-  setLocalItem(STORAGE_KEYS.INVITEES, [newInvitee, ...list]);
-  recordLocalAudit(user, 'INSERT', 'invitees', newInvitee.id, null, newInvitee);
-  return newInvitee;
+  await recordAuditLog(user, 'INSERT', 'invitees', inserted.id, null, inserted);
+  notifyDbUpdate();
+  return inserted as Invitee;
 }
 
 export async function updateInvitee(
@@ -356,31 +320,34 @@ export async function updateInvitee(
   data: Partial<Invitee>,
   user: UserProfile
 ): Promise<Invitee> {
-  if (isSupabaseConfigured) {
-    const { data: updated, error } = await supabase
-      .from('invitees')
-      .update({ ...data, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
-    if (!error && updated) return updated as Invitee;
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot update invitee.');
   }
 
-  const list = getLocalItem<Invitee[]>(STORAGE_KEYS.INVITEES, INITIAL_INVITEES);
-  const idx = list.findIndex((i) => i.id === id);
-  if (idx === -1) throw new Error('Invitee not found');
+  const {
+    id: _id,
+    created_at: _ca,
+    ...updatePayload
+  } = data as any;
 
-  const old = list[idx];
-  const updatedInv: Invitee = {
-    ...old,
-    ...data,
-    updated_at: new Date().toISOString(),
-  };
+  const { data: updated, error } = await supabase
+    .from('invitees')
+    .update({
+      ...updatePayload,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single();
 
-  list[idx] = updatedInv;
-  setLocalItem(STORAGE_KEYS.INVITEES, [...list]);
-  recordLocalAudit(user, 'UPDATE', 'invitees', id, old, updatedInv);
-  return updatedInv;
+  if (error || !updated) {
+    console.error(`[InviteeService] Supabase UPDATE failed (${id}):`, error);
+    throw new Error(`Failed to update invitee in Supabase: ${error?.message || 'Record not found'} (${error?.code || 'ERR'})`);
+  }
+
+  await recordAuditLog(user, 'UPDATE', 'invitees', id, null, updated);
+  notifyDbUpdate();
+  return updated as Invitee;
 }
 
 export async function deleteInvitee(id: string, user: UserProfile): Promise<boolean> {
@@ -388,33 +355,22 @@ export async function deleteInvitee(id: string, user: UserProfile): Promise<bool
     throw new Error('Unauthorized: Only Admin can delete invitees');
   }
 
-  if (isSupabaseConfigured) {
-    const { error } = await supabase.from('invitees').delete().eq('id', id);
-    if (!error) return true;
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot delete invitee.');
   }
 
-  const list = getLocalItem<Invitee[]>(STORAGE_KEYS.INVITEES, INITIAL_INVITEES);
-  const existing = list.find((i) => i.id === id);
-  const filtered = list.filter((i) => i.id !== id);
-  setLocalItem(STORAGE_KEYS.INVITEES, filtered);
+  const { error } = await supabase
+    .from('invitees')
+    .delete()
+    .eq('id', id);
 
-  // Cascade delete in associated local tables
-  const trans = getLocalItem<TransportationRecord[]>(STORAGE_KEYS.TRANSPORT, INITIAL_TRANSPORTATION).filter((t) => t.invitee_id !== id);
-  setLocalItem(STORAGE_KEYS.TRANSPORT, trans);
+  if (error) {
+    console.error(`[InviteeService] Supabase DELETE failed (${id}):`, error);
+    throw new Error(`Failed to delete invitee in Supabase: ${error.message} (${error.code})`);
+  }
 
-  const accs = getLocalItem<AccommodationRecord[]>(STORAGE_KEYS.ACCOMMODATION, INITIAL_ACCOMMODATIONS).filter((a) => a.invitee_id !== id);
-  setLocalItem(STORAGE_KEYS.ACCOMMODATION, accs);
-
-  const foods = getLocalItem<FoodRecord[]>(STORAGE_KEYS.FOOD, INITIAL_FOOD).filter((f) => f.invitee_id !== id);
-  setLocalItem(STORAGE_KEYS.FOOD, foods);
-
-  const recs = getLocalItem<ReceptionRecord[]>(STORAGE_KEYS.RECEPTION, INITIAL_RECEPTION).filter((r) => r.invitee_id !== id);
-  setLocalItem(STORAGE_KEYS.RECEPTION, recs);
-
-  const halls = getLocalItem<MeetingHallRecord[]>(STORAGE_KEYS.MEETING_HALL, INITIAL_MEETING_HALL).filter((h) => h.invitee_id !== id);
-  setLocalItem(STORAGE_KEYS.MEETING_HALL, halls);
-
-  recordLocalAudit(user, 'DELETE', 'invitees', id, existing, null);
+  await recordAuditLog(user, 'DELETE', 'invitees', id, null, null);
+  notifyDbUpdate();
   return true;
 }
 
@@ -422,24 +378,23 @@ export async function deleteInvitee(id: string, user: UserProfile): Promise<bool
 // TRANSPORTATION SERVICE
 // -------------------------------------------------------------
 export async function getTransportationRecords(): Promise<TransportationRecord[]> {
-  const invitees = await getInvitees();
-  const inviteeMap = new Map(invitees.map((i) => [i.id, i]));
-
-  if (isSupabaseConfigured) {
-    const { data, error } = await supabase
-      .from('transportation')
-      .select('*')
-      .order('journey_date', { ascending: true });
-    if (!error && data) {
-      return (data as TransportationRecord[]).map((t) => ({
-        ...t,
-        invitee: inviteeMap.get(t.invitee_id),
-      }));
-    }
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot load transportation records.');
   }
 
-  const local = getLocalItem<TransportationRecord[]>(STORAGE_KEYS.TRANSPORT, INITIAL_TRANSPORTATION);
-  return local.map((t) => ({
+  const inviteeMap = await getInviteeLookupMap();
+
+  const { data, error } = await supabase
+    .from('transportation')
+    .select('*')
+    .order('journey_date', { ascending: true });
+
+  if (error) {
+    console.error('[TransportationService] Supabase SELECT failed:', error);
+    throw new Error(`Failed to load transportation records: ${error.message} (${error.code})`);
+  }
+
+  return ((data || []) as TransportationRecord[]).map((t) => ({
     ...t,
     invitee: inviteeMap.get(t.invitee_id),
   }));
@@ -449,28 +404,31 @@ export async function createTransportation(
   data: Omit<TransportationRecord, 'id' | 'created_at' | 'updated_at'>,
   user: UserProfile
 ): Promise<TransportationRecord> {
-  const now = new Date().toISOString();
-  if (isSupabaseConfigured) {
-    const { data: inserted, error } = await supabase
-      .from('transportation')
-      .insert([{ ...data, created_by: user.id, updated_by: user.id }])
-      .select()
-      .single();
-    if (!error && inserted) return inserted as TransportationRecord;
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot create transportation record.');
   }
 
-  const list = getLocalItem<TransportationRecord[]>(STORAGE_KEYS.TRANSPORT, INITIAL_TRANSPORTATION);
-  const newRec: TransportationRecord = {
-    ...data,
-    id: 'trans-' + Date.now(),
+  const { invitee: _inv, id: _id, created_at: _ca, updated_at: _ua, ...cleanData } = data as any;
+  const payload = {
+    ...cleanData,
     created_by: user.id,
     updated_by: user.id,
-    created_at: now,
-    updated_at: now,
   };
-  setLocalItem(STORAGE_KEYS.TRANSPORT, [newRec, ...list]);
-  recordLocalAudit(user, 'INSERT', 'transportation', newRec.id, null, newRec);
-  return newRec;
+
+  const { data: inserted, error } = await supabase
+    .from('transportation')
+    .insert([payload])
+    .select()
+    .single();
+
+  if (error || !inserted) {
+    console.error('[TransportationService] Supabase INSERT failed:', error);
+    throw new Error(`Failed to create transportation record: ${error?.message || 'Database error'} (${error?.code || 'ERR'})`);
+  }
+
+  await recordAuditLog(user, 'INSERT', 'transportation', inserted.id, null, inserted);
+  notifyDbUpdate();
+  return inserted as TransportationRecord;
 }
 
 export async function updateTransportation(
@@ -478,46 +436,47 @@ export async function updateTransportation(
   data: Partial<TransportationRecord>,
   user: UserProfile
 ): Promise<TransportationRecord> {
-  const now = new Date().toISOString();
-  if (isSupabaseConfigured) {
-    const { data: updated, error } = await supabase
-      .from('transportation')
-      .update({ ...data, updated_by: user.id, updated_at: now })
-      .eq('id', id)
-      .select()
-      .single();
-    if (!error && updated) return updated as TransportationRecord;
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot update transportation record.');
   }
 
-  const list = getLocalItem<TransportationRecord[]>(STORAGE_KEYS.TRANSPORT, INITIAL_TRANSPORTATION);
-  const idx = list.findIndex((t) => t.id === id);
-  if (idx === -1) throw new Error('Transportation record not found');
-
-  const old = list[idx];
-  const updatedRec: TransportationRecord = {
-    ...old,
-    ...data,
+  const { id: _id, invitee: _inv, created_at: _ca, ...cleanData } = data as any;
+  const payload = {
+    ...cleanData,
     updated_by: user.id,
-    updated_at: now,
+    updated_at: new Date().toISOString(),
   };
-  list[idx] = updatedRec;
-  setLocalItem(STORAGE_KEYS.TRANSPORT, [...list]);
-  recordLocalAudit(user, 'UPDATE', 'transportation', id, old, updatedRec);
-  return updatedRec;
+
+  const { data: updated, error } = await supabase
+    .from('transportation')
+    .update(payload)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error || !updated) {
+    console.error(`[TransportationService] Supabase UPDATE failed (${id}):`, error);
+    throw new Error(`Failed to update transportation record: ${error?.message || 'Record not found'} (${error?.code || 'ERR'})`);
+  }
+
+  await recordAuditLog(user, 'UPDATE', 'transportation', id, null, updated);
+  notifyDbUpdate();
+  return updated as TransportationRecord;
 }
 
 export async function deleteTransportation(id: string, user: UserProfile): Promise<boolean> {
-  if (isSupabaseConfigured) {
-    const { error } = await supabase.from('transportation').delete().eq('id', id);
-    if (!error) return true;
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot delete transportation record.');
   }
-  const list = getLocalItem<TransportationRecord[]>(STORAGE_KEYS.TRANSPORT, INITIAL_TRANSPORTATION);
-  const existing = list.find((t) => t.id === id);
-  setLocalItem(
-    STORAGE_KEYS.TRANSPORT,
-    list.filter((t) => t.id !== id)
-  );
-  recordLocalAudit(user, 'DELETE', 'transportation', id, existing, null);
+
+  const { error } = await supabase.from('transportation').delete().eq('id', id);
+  if (error) {
+    console.error(`[TransportationService] Supabase DELETE failed (${id}):`, error);
+    throw new Error(`Failed to delete transportation record: ${error.message} (${error.code})`);
+  }
+
+  await recordAuditLog(user, 'DELETE', 'transportation', id, null, null);
+  notifyDbUpdate();
   return true;
 }
 
@@ -525,24 +484,23 @@ export async function deleteTransportation(id: string, user: UserProfile): Promi
 // ACCOMMODATION SERVICE & ROOM CONFLICT CHECK
 // -------------------------------------------------------------
 export async function getAccommodations(): Promise<AccommodationRecord[]> {
-  const invitees = await getInvitees();
-  const inviteeMap = new Map(invitees.map((i) => [i.id, i]));
-
-  if (isSupabaseConfigured) {
-    const { data, error } = await supabase
-      .from('accommodations')
-      .select('*')
-      .order('check_in_date', { ascending: true });
-    if (!error && data) {
-      return (data as AccommodationRecord[]).map((a) => ({
-        ...a,
-        invitee: inviteeMap.get(a.invitee_id),
-      }));
-    }
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot load accommodations.');
   }
 
-  const local = getLocalItem<AccommodationRecord[]>(STORAGE_KEYS.ACCOMMODATION, INITIAL_ACCOMMODATIONS);
-  return local.map((a) => ({
+  const inviteeMap = await getInviteeLookupMap();
+
+  const { data, error } = await supabase
+    .from('accommodations')
+    .select('*')
+    .order('check_in_date', { ascending: true });
+
+  if (error) {
+    console.error('[AccommodationService] Supabase SELECT failed:', error);
+    throw new Error(`Failed to load accommodations: ${error.message} (${error.code})`);
+  }
+
+  return ((data || []) as AccommodationRecord[]).map((a) => ({
     ...a,
     invitee: inviteeMap.get(a.invitee_id),
   }));
@@ -589,6 +547,10 @@ export async function createAccommodation(
   user: UserProfile,
   allowShared = false
 ): Promise<AccommodationRecord> {
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot create accommodation.');
+  }
+
   if (!allowShared && data.hotel_name && data.room_number && data.check_in_date && data.check_out_date) {
     const conflict = await checkRoomConflict(
       data.hotel_name,
@@ -603,28 +565,27 @@ export async function createAccommodation(
     }
   }
 
-  const now = new Date().toISOString();
-  if (isSupabaseConfigured) {
-    const { data: inserted, error } = await supabase
-      .from('accommodations')
-      .insert([{ ...data, created_by: user.id, updated_by: user.id }])
-      .select()
-      .single();
-    if (!error && inserted) return inserted as AccommodationRecord;
-  }
-
-  const list = getLocalItem<AccommodationRecord[]>(STORAGE_KEYS.ACCOMMODATION, INITIAL_ACCOMMODATIONS);
-  const newRec: AccommodationRecord = {
-    ...data,
-    id: 'acc-' + Date.now(),
+  const { invitee: _inv, id: _id, created_at: _ca, updated_at: _ua, ...cleanData } = data as any;
+  const payload = {
+    ...cleanData,
     created_by: user.id,
     updated_by: user.id,
-    created_at: now,
-    updated_at: now,
   };
-  setLocalItem(STORAGE_KEYS.ACCOMMODATION, [newRec, ...list]);
-  recordLocalAudit(user, 'INSERT', 'accommodations', newRec.id, null, newRec);
-  return newRec;
+
+  const { data: inserted, error } = await supabase
+    .from('accommodations')
+    .insert([payload])
+    .select()
+    .single();
+
+  if (error || !inserted) {
+    console.error('[AccommodationService] Supabase INSERT failed:', error);
+    throw new Error(`Failed to create accommodation record: ${error?.message || 'Database error'} (${error?.code || 'ERR'})`);
+  }
+
+  await recordAuditLog(user, 'INSERT', 'accommodations', inserted.id, null, inserted);
+  notifyDbUpdate();
+  return inserted as AccommodationRecord;
 }
 
 export async function updateAccommodation(
@@ -633,15 +594,14 @@ export async function updateAccommodation(
   user: UserProfile,
   allowShared = false
 ): Promise<AccommodationRecord> {
-  const list = getLocalItem<AccommodationRecord[]>(STORAGE_KEYS.ACCOMMODATION, INITIAL_ACCOMMODATIONS);
-  const idx = list.findIndex((a) => a.id === id);
-  if (idx === -1) throw new Error('Accommodation record not found');
-  const old = list[idx];
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot update accommodation.');
+  }
 
-  const hotel = data.hotel_name ?? old.hotel_name;
-  const room = data.room_number ?? old.room_number;
-  const checkIn = data.check_in_date ?? old.check_in_date;
-  const checkOut = data.check_out_date ?? old.check_out_date;
+  const hotel = data.hotel_name;
+  const room = data.room_number;
+  const checkIn = data.check_in_date;
+  const checkOut = data.check_out_date;
 
   if (!allowShared && hotel && room && checkIn && checkOut) {
     const conflict = await checkRoomConflict(hotel, room, checkIn, checkOut, id);
@@ -652,41 +612,43 @@ export async function updateAccommodation(
     }
   }
 
-  const now = new Date().toISOString();
-  if (isSupabaseConfigured) {
-    const { data: updated, error } = await supabase
-      .from('accommodations')
-      .update({ ...data, updated_by: user.id, updated_at: now })
-      .eq('id', id)
-      .select()
-      .single();
-    if (!error && updated) return updated as AccommodationRecord;
+  const { id: _id, invitee: _inv, created_at: _ca, ...cleanData } = data as any;
+  const payload = {
+    ...cleanData,
+    updated_by: user.id,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data: updated, error } = await supabase
+    .from('accommodations')
+    .update(payload)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error || !updated) {
+    console.error(`[AccommodationService] Supabase UPDATE failed (${id}):`, error);
+    throw new Error(`Failed to update accommodation record: ${error?.message || 'Record not found'} (${error?.code || 'ERR'})`);
   }
 
-  const updatedRec: AccommodationRecord = {
-    ...old,
-    ...data,
-    updated_by: user.id,
-    updated_at: now,
-  };
-  list[idx] = updatedRec;
-  setLocalItem(STORAGE_KEYS.ACCOMMODATION, [...list]);
-  recordLocalAudit(user, 'UPDATE', 'accommodations', id, old, updatedRec);
-  return updatedRec;
+  await recordAuditLog(user, 'UPDATE', 'accommodations', id, null, updated);
+  notifyDbUpdate();
+  return updated as AccommodationRecord;
 }
 
 export async function deleteAccommodation(id: string, user: UserProfile): Promise<boolean> {
-  if (isSupabaseConfigured) {
-    const { error } = await supabase.from('accommodations').delete().eq('id', id);
-    if (!error) return true;
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot delete accommodation.');
   }
-  const list = getLocalItem<AccommodationRecord[]>(STORAGE_KEYS.ACCOMMODATION, INITIAL_ACCOMMODATIONS);
-  const existing = list.find((a) => a.id === id);
-  setLocalItem(
-    STORAGE_KEYS.ACCOMMODATION,
-    list.filter((a) => a.id !== id)
-  );
-  recordLocalAudit(user, 'DELETE', 'accommodations', id, existing, null);
+
+  const { error } = await supabase.from('accommodations').delete().eq('id', id);
+  if (error) {
+    console.error(`[AccommodationService] Supabase DELETE failed (${id}):`, error);
+    throw new Error(`Failed to delete accommodation record: ${error.message} (${error.code})`);
+  }
+
+  await recordAuditLog(user, 'DELETE', 'accommodations', id, null, null);
+  notifyDbUpdate();
   return true;
 }
 
@@ -718,16 +680,16 @@ export async function undoAccommodationRegistration(
     {
       hotel_registered: false,
       registration_status: 'Pending',
-      registered_at: undefined,
-      registered_by: undefined,
+      registered_at: null,
+      registered_by: null,
       special_requirements: reason
         ? `Registration undone by ${user.full_name}: ${reason}`
-        : undefined,
+        : null,
     },
     user,
     true
   );
-  recordLocalAudit(user, 'UNDO_REGISTRATION', 'accommodations', accommodationId, null, { reason });
+  await recordAuditLog(user, 'UNDO_REGISTRATION', 'accommodations', accommodationId, null, { reason });
   return updated;
 }
 
@@ -735,24 +697,23 @@ export async function undoAccommodationRegistration(
 // FOOD SERVICE
 // -------------------------------------------------------------
 export async function getFoodRecords(): Promise<FoodRecord[]> {
-  const invitees = await getInvitees();
-  const inviteeMap = new Map(invitees.map((i) => [i.id, i]));
-
-  if (isSupabaseConfigured) {
-    const { data, error } = await supabase
-      .from('food_arrangements')
-      .select('*')
-      .order('meal_date', { ascending: true });
-    if (!error && data) {
-      return (data as FoodRecord[]).map((f) => ({
-        ...f,
-        invitee: inviteeMap.get(f.invitee_id),
-      }));
-    }
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot load food arrangements.');
   }
 
-  const local = getLocalItem<FoodRecord[]>(STORAGE_KEYS.FOOD, INITIAL_FOOD);
-  return local.map((f) => ({
+  const inviteeMap = await getInviteeLookupMap();
+
+  const { data, error } = await supabase
+    .from('food_arrangements')
+    .select('*')
+    .order('meal_date', { ascending: true });
+
+  if (error) {
+    console.error('[FoodService] Supabase SELECT failed:', error);
+    throw new Error(`Failed to load food arrangements: ${error.message} (${error.code})`);
+  }
+
+  return ((data || []) as FoodRecord[]).map((f) => ({
     ...f,
     invitee: inviteeMap.get(f.invitee_id),
   }));
@@ -762,28 +723,31 @@ export async function createFoodRecord(
   data: Omit<FoodRecord, 'id' | 'created_at' | 'updated_at'>,
   user: UserProfile
 ): Promise<FoodRecord> {
-  const now = new Date().toISOString();
-  if (isSupabaseConfigured) {
-    const { data: inserted, error } = await supabase
-      .from('food_arrangements')
-      .insert([{ ...data, created_by: user.id, updated_by: user.id }])
-      .select()
-      .single();
-    if (!error && inserted) return inserted as FoodRecord;
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot create food record.');
   }
 
-  const list = getLocalItem<FoodRecord[]>(STORAGE_KEYS.FOOD, INITIAL_FOOD);
-  const newRec: FoodRecord = {
-    ...data,
-    id: 'food-' + Date.now(),
+  const { invitee: _inv, id: _id, created_at: _ca, updated_at: _ua, ...cleanData } = data as any;
+  const payload = {
+    ...cleanData,
     created_by: user.id,
     updated_by: user.id,
-    created_at: now,
-    updated_at: now,
   };
-  setLocalItem(STORAGE_KEYS.FOOD, [newRec, ...list]);
-  recordLocalAudit(user, 'INSERT', 'food_arrangements', newRec.id, null, newRec);
-  return newRec;
+
+  const { data: inserted, error } = await supabase
+    .from('food_arrangements')
+    .insert([payload])
+    .select()
+    .single();
+
+  if (error || !inserted) {
+    console.error('[FoodService] Supabase INSERT failed:', error);
+    throw new Error(`Failed to create food arrangement: ${error?.message || 'Database error'} (${error?.code || 'ERR'})`);
+  }
+
+  await recordAuditLog(user, 'INSERT', 'food_arrangements', inserted.id, null, inserted);
+  notifyDbUpdate();
+  return inserted as FoodRecord;
 }
 
 export async function updateFoodRecord(
@@ -791,46 +755,47 @@ export async function updateFoodRecord(
   data: Partial<FoodRecord>,
   user: UserProfile
 ): Promise<FoodRecord> {
-  const now = new Date().toISOString();
-  if (isSupabaseConfigured) {
-    const { data: updated, error } = await supabase
-      .from('food_arrangements')
-      .update({ ...data, updated_by: user.id, updated_at: now })
-      .eq('id', id)
-      .select()
-      .single();
-    if (!error && updated) return updated as FoodRecord;
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot update food record.');
   }
 
-  const list = getLocalItem<FoodRecord[]>(STORAGE_KEYS.FOOD, INITIAL_FOOD);
-  const idx = list.findIndex((f) => f.id === id);
-  if (idx === -1) throw new Error('Food record not found');
-
-  const old = list[idx];
-  const updatedRec: FoodRecord = {
-    ...old,
-    ...data,
+  const { id: _id, invitee: _inv, created_at: _ca, ...cleanData } = data as any;
+  const payload = {
+    ...cleanData,
     updated_by: user.id,
-    updated_at: now,
+    updated_at: new Date().toISOString(),
   };
-  list[idx] = updatedRec;
-  setLocalItem(STORAGE_KEYS.FOOD, [...list]);
-  recordLocalAudit(user, 'UPDATE', 'food_arrangements', id, old, updatedRec);
-  return updatedRec;
+
+  const { data: updated, error } = await supabase
+    .from('food_arrangements')
+    .update(payload)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error || !updated) {
+    console.error(`[FoodService] Supabase UPDATE failed (${id}):`, error);
+    throw new Error(`Failed to update food arrangement: ${error?.message || 'Record not found'} (${error?.code || 'ERR'})`);
+  }
+
+  await recordAuditLog(user, 'UPDATE', 'food_arrangements', id, null, updated);
+  notifyDbUpdate();
+  return updated as FoodRecord;
 }
 
 export async function deleteFoodRecord(id: string, user: UserProfile): Promise<boolean> {
-  if (isSupabaseConfigured) {
-    const { error } = await supabase.from('food_arrangements').delete().eq('id', id);
-    if (!error) return true;
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot delete food record.');
   }
-  const list = getLocalItem<FoodRecord[]>(STORAGE_KEYS.FOOD, INITIAL_FOOD);
-  const existing = list.find((f) => f.id === id);
-  setLocalItem(
-    STORAGE_KEYS.FOOD,
-    list.filter((f) => f.id !== id)
-  );
-  recordLocalAudit(user, 'DELETE', 'food_arrangements', id, existing, null);
+
+  const { error } = await supabase.from('food_arrangements').delete().eq('id', id);
+  if (error) {
+    console.error(`[FoodService] Supabase DELETE failed (${id}):`, error);
+    throw new Error(`Failed to delete food record: ${error.message} (${error.code})`);
+  }
+
+  await recordAuditLog(user, 'DELETE', 'food_arrangements', id, null, null);
+  notifyDbUpdate();
   return true;
 }
 
@@ -838,24 +803,23 @@ export async function deleteFoodRecord(id: string, user: UserProfile): Promise<b
 // RECEPTION SERVICE
 // -------------------------------------------------------------
 export async function getReceptionRecords(): Promise<ReceptionRecord[]> {
-  const invitees = await getInvitees();
-  const inviteeMap = new Map(invitees.map((i) => [i.id, i]));
-
-  if (isSupabaseConfigured) {
-    const { data, error } = await supabase
-      .from('reception')
-      .select('*')
-      .order('expected_arrival', { ascending: true });
-    if (!error && data) {
-      return (data as ReceptionRecord[]).map((r) => ({
-        ...r,
-        invitee: inviteeMap.get(r.invitee_id),
-      }));
-    }
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot load reception records.');
   }
 
-  const local = getLocalItem<ReceptionRecord[]>(STORAGE_KEYS.RECEPTION, INITIAL_RECEPTION);
-  return local.map((r) => ({
+  const inviteeMap = await getInviteeLookupMap();
+
+  const { data, error } = await supabase
+    .from('reception')
+    .select('*')
+    .order('expected_arrival', { ascending: true });
+
+  if (error) {
+    console.error('[ReceptionService] Supabase SELECT failed:', error);
+    throw new Error(`Failed to load reception records: ${error.message} (${error.code})`);
+  }
+
+  return ((data || []) as ReceptionRecord[]).map((r) => ({
     ...r,
     invitee: inviteeMap.get(r.invitee_id),
   }));
@@ -865,28 +829,31 @@ export async function createReceptionRecord(
   data: Omit<ReceptionRecord, 'id' | 'created_at' | 'updated_at'>,
   user: UserProfile
 ): Promise<ReceptionRecord> {
-  const now = new Date().toISOString();
-  if (isSupabaseConfigured) {
-    const { data: inserted, error } = await supabase
-      .from('reception')
-      .insert([{ ...data, created_by: user.id, updated_by: user.id }])
-      .select()
-      .single();
-    if (!error && inserted) return inserted as ReceptionRecord;
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot create reception record.');
   }
 
-  const list = getLocalItem<ReceptionRecord[]>(STORAGE_KEYS.RECEPTION, INITIAL_RECEPTION);
-  const newRec: ReceptionRecord = {
-    ...data,
-    id: 'rec-' + Date.now(),
+  const { invitee: _inv, id: _id, created_at: _ca, updated_at: _ua, ...cleanData } = data as any;
+  const payload = {
+    ...cleanData,
     created_by: user.id,
     updated_by: user.id,
-    created_at: now,
-    updated_at: now,
   };
-  setLocalItem(STORAGE_KEYS.RECEPTION, [newRec, ...list]);
-  recordLocalAudit(user, 'INSERT', 'reception', newRec.id, null, newRec);
-  return newRec;
+
+  const { data: inserted, error } = await supabase
+    .from('reception')
+    .insert([payload])
+    .select()
+    .single();
+
+  if (error || !inserted) {
+    console.error('[ReceptionService] Supabase INSERT failed:', error);
+    throw new Error(`Failed to create reception record: ${error?.message || 'Database error'} (${error?.code || 'ERR'})`);
+  }
+
+  await recordAuditLog(user, 'INSERT', 'reception', inserted.id, null, inserted);
+  notifyDbUpdate();
+  return inserted as ReceptionRecord;
 }
 
 export async function updateReceptionRecord(
@@ -894,56 +861,55 @@ export async function updateReceptionRecord(
   data: Partial<ReceptionRecord>,
   user: UserProfile
 ): Promise<ReceptionRecord> {
-  const now = new Date().toISOString();
-  if (isSupabaseConfigured) {
-    const { data: updated, error } = await supabase
-      .from('reception')
-      .update({ ...data, updated_by: user.id, updated_at: now })
-      .eq('id', id)
-      .select()
-      .single();
-    if (!error && updated) return updated as ReceptionRecord;
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot update reception record.');
   }
 
-  const list = getLocalItem<ReceptionRecord[]>(STORAGE_KEYS.RECEPTION, INITIAL_RECEPTION);
-  const idx = list.findIndex((r) => r.id === id);
-  if (idx === -1) throw new Error('Reception record not found');
-
-  const old = list[idx];
-  const updatedRec: ReceptionRecord = {
-    ...old,
-    ...data,
+  const { id: _id, invitee: _inv, created_at: _ca, ...cleanData } = data as any;
+  const payload = {
+    ...cleanData,
     updated_by: user.id,
-    updated_at: now,
+    updated_at: new Date().toISOString(),
   };
-  list[idx] = updatedRec;
-  setLocalItem(STORAGE_KEYS.RECEPTION, [...list]);
-  recordLocalAudit(user, 'UPDATE', 'reception', id, old, updatedRec);
-  return updatedRec;
+
+  const { data: updated, error } = await supabase
+    .from('reception')
+    .update(payload)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error || !updated) {
+    console.error(`[ReceptionService] Supabase UPDATE failed (${id}):`, error);
+    throw new Error(`Failed to update reception record: ${error?.message || 'Record not found'} (${error?.code || 'ERR'})`);
+  }
+
+  await recordAuditLog(user, 'UPDATE', 'reception', id, null, updated);
+  notifyDbUpdate();
+  return updated as ReceptionRecord;
 }
 
 // -------------------------------------------------------------
 // MEETING HALL SERVICE & SEAT CONFLICT CHECK
 // -------------------------------------------------------------
 export async function getMeetingHallRecords(): Promise<MeetingHallRecord[]> {
-  const invitees = await getInvitees();
-  const inviteeMap = new Map(invitees.map((i) => [i.id, i]));
-
-  if (isSupabaseConfigured) {
-    const { data, error } = await supabase
-      .from('meeting_hall_assignments')
-      .select('*')
-      .order('meeting_hall', { ascending: true });
-    if (!error && data) {
-      return (data as MeetingHallRecord[]).map((m) => ({
-        ...m,
-        invitee: inviteeMap.get(m.invitee_id),
-      }));
-    }
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot load meeting hall assignments.');
   }
 
-  const local = getLocalItem<MeetingHallRecord[]>(STORAGE_KEYS.MEETING_HALL, INITIAL_MEETING_HALL);
-  return local.map((m) => ({
+  const inviteeMap = await getInviteeLookupMap();
+
+  const { data, error } = await supabase
+    .from('meeting_hall_assignments')
+    .select('*')
+    .order('meeting_hall', { ascending: true });
+
+  if (error) {
+    console.error('[MeetingHallService] Supabase SELECT failed:', error);
+    throw new Error(`Failed to load meeting hall records: ${error.message} (${error.code})`);
+  }
+
+  return ((data || []) as MeetingHallRecord[]).map((m) => ({
     ...m,
     invitee: inviteeMap.get(m.invitee_id),
   }));
@@ -976,6 +942,10 @@ export async function createMeetingHallRecord(
   data: Omit<MeetingHallRecord, 'id' | 'created_at' | 'updated_at'>,
   user: UserProfile
 ): Promise<MeetingHallRecord> {
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot create meeting hall record.');
+  }
+
   const conflict = await checkSeatConflict(data.meeting_hall, data.seating_section, data.seat_number);
   if (conflict.hasConflict) {
     throw new Error(
@@ -983,28 +953,27 @@ export async function createMeetingHallRecord(
     );
   }
 
-  const now = new Date().toISOString();
-  if (isSupabaseConfigured) {
-    const { data: inserted, error } = await supabase
-      .from('meeting_hall_assignments')
-      .insert([{ ...data, created_by: user.id, updated_by: user.id }])
-      .select()
-      .single();
-    if (!error && inserted) return inserted as MeetingHallRecord;
-  }
-
-  const list = getLocalItem<MeetingHallRecord[]>(STORAGE_KEYS.MEETING_HALL, INITIAL_MEETING_HALL);
-  const newRec: MeetingHallRecord = {
-    ...data,
-    id: 'hall-' + Date.now(),
+  const { invitee: _inv, id: _id, created_at: _ca, updated_at: _ua, ...cleanData } = data as any;
+  const payload = {
+    ...cleanData,
     created_by: user.id,
     updated_by: user.id,
-    created_at: now,
-    updated_at: now,
   };
-  setLocalItem(STORAGE_KEYS.MEETING_HALL, [newRec, ...list]);
-  recordLocalAudit(user, 'INSERT', 'meeting_hall_assignments', newRec.id, null, newRec);
-  return newRec;
+
+  const { data: inserted, error } = await supabase
+    .from('meeting_hall_assignments')
+    .insert([payload])
+    .select()
+    .single();
+
+  if (error || !inserted) {
+    console.error('[MeetingHallService] Supabase INSERT failed:', error);
+    throw new Error(`Failed to create meeting hall assignment: ${error?.message || 'Database error'} (${error?.code || 'ERR'})`);
+  }
+
+  await recordAuditLog(user, 'INSERT', 'meeting_hall_assignments', inserted.id, null, inserted);
+  notifyDbUpdate();
+  return inserted as MeetingHallRecord;
 }
 
 export async function updateMeetingHallRecord(
@@ -1012,57 +981,60 @@ export async function updateMeetingHallRecord(
   data: Partial<MeetingHallRecord>,
   user: UserProfile
 ): Promise<MeetingHallRecord> {
-  const list = getLocalItem<MeetingHallRecord[]>(STORAGE_KEYS.MEETING_HALL, INITIAL_MEETING_HALL);
-  const idx = list.findIndex((m) => m.id === id);
-  if (idx === -1) throw new Error('Meeting hall record not found');
-  const old = list[idx];
-
-  const hall = data.meeting_hall ?? old.meeting_hall;
-  const section = data.seating_section ?? old.seating_section;
-  const seat = data.seat_number ?? old.seat_number;
-
-  const conflict = await checkSeatConflict(hall, section, seat, id);
-  if (conflict.hasConflict) {
-    throw new Error(
-      `Seat duplicate: Seat ${seat} in ${section} (${hall}) is already assigned to ${conflict.conflictingWith?.invitee?.full_name || 'another invitee'}.`
-    );
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot update meeting hall record.');
   }
 
-  const now = new Date().toISOString();
-  if (isSupabaseConfigured) {
-    const { data: updated, error } = await supabase
-      .from('meeting_hall_assignments')
-      .update({ ...data, updated_by: user.id, updated_at: now })
-      .eq('id', id)
-      .select()
-      .single();
-    if (!error && updated) return updated as MeetingHallRecord;
+  const { id: _id, invitee: _inv, created_at: _ca, ...cleanData } = data as any;
+  const hall = data.meeting_hall;
+  const section = data.seating_section;
+  const seat = data.seat_number;
+
+  if (hall && section && seat) {
+    const conflict = await checkSeatConflict(hall, section, seat, id);
+    if (conflict.hasConflict) {
+      throw new Error(
+        `Seat duplicate: Seat ${seat} in ${section} (${hall}) is already assigned to ${conflict.conflictingWith?.invitee?.full_name || 'another invitee'}.`
+      );
+    }
   }
 
-  const updatedRec: MeetingHallRecord = {
-    ...old,
-    ...data,
+  const payload = {
+    ...cleanData,
     updated_by: user.id,
-    updated_at: now,
+    updated_at: new Date().toISOString(),
   };
-  list[idx] = updatedRec;
-  setLocalItem(STORAGE_KEYS.MEETING_HALL, [...list]);
-  recordLocalAudit(user, 'UPDATE', 'meeting_hall_assignments', id, old, updatedRec);
-  return updatedRec;
+
+  const { data: updated, error } = await supabase
+    .from('meeting_hall_assignments')
+    .update(payload)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error || !updated) {
+    console.error(`[MeetingHallService] Supabase UPDATE failed (${id}):`, error);
+    throw new Error(`Failed to update meeting hall assignment: ${error?.message || 'Record not found'} (${error?.code || 'ERR'})`);
+  }
+
+  await recordAuditLog(user, 'UPDATE', 'meeting_hall_assignments', id, null, updated);
+  notifyDbUpdate();
+  return updated as MeetingHallRecord;
 }
 
 export async function deleteMeetingHallRecord(id: string, user: UserProfile): Promise<boolean> {
-  if (isSupabaseConfigured) {
-    const { error } = await supabase.from('meeting_hall_assignments').delete().eq('id', id);
-    if (!error) return true;
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot delete meeting hall record.');
   }
-  const list = getLocalItem<MeetingHallRecord[]>(STORAGE_KEYS.MEETING_HALL, INITIAL_MEETING_HALL);
-  const existing = list.find((m) => m.id === id);
-  setLocalItem(
-    STORAGE_KEYS.MEETING_HALL,
-    list.filter((m) => m.id !== id)
-  );
-  recordLocalAudit(user, 'DELETE', 'meeting_hall_assignments', id, existing, null);
+
+  const { error } = await supabase.from('meeting_hall_assignments').delete().eq('id', id);
+  if (error) {
+    console.error(`[MeetingHallService] Supabase DELETE failed (${id}):`, error);
+    throw new Error(`Failed to delete meeting hall assignment: ${error.message} (${error.code})`);
+  }
+
+  await recordAuditLog(user, 'DELETE', 'meeting_hall_assignments', id, null, null);
+  notifyDbUpdate();
   return true;
 }
 
@@ -1070,14 +1042,53 @@ export async function deleteMeetingHallRecord(id: string, user: UserProfile): Pr
 // VOLUNTEER & PROFILE MANAGEMENT (Admin)
 // -------------------------------------------------------------
 export async function getProfiles(): Promise<UserProfile[]> {
-  if (isSupabaseConfigured) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (!error && data) return data as UserProfile[];
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot load profiles.');
   }
-  return getLocalItem<UserProfile[]>(STORAGE_KEYS.PROFILES, INITIAL_PROFILES);
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[VolunteerService] Supabase SELECT failed:', error);
+    throw new Error(`Failed to load user profiles: ${error.message} (${error.code})`);
+  }
+
+  return (data || []) as UserProfile[];
+}
+
+/**
+ * Ensures an active, verified, unexpired session token is available for privileged Edge Function calls.
+ * Automatically refreshes the session if token is missing, expired, or within 60s of expiration.
+ */
+export async function getFreshAdminAccessToken(): Promise<string> {
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured.');
+  }
+
+  let { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const isExpiringSoon = !session?.expires_at || (session.expires_at - nowSeconds < 60);
+
+  if (sessionError || !session || isExpiringSoon) {
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError || !refreshData?.session) {
+      if (session?.access_token && session.expires_at && session.expires_at > nowSeconds) {
+        return session.access_token;
+      }
+      throw new Error('Invalid or expired authentication session. Please sign in again.');
+    }
+    session = refreshData.session;
+  }
+
+  if (!session?.access_token) {
+    throw new Error('Authentication session token is missing. Please sign in again.');
+  }
+
+  return session.access_token;
 }
 
 export async function createVolunteer(
@@ -1086,6 +1097,7 @@ export async function createVolunteer(
     username: string;
     role: UserRole;
     department: string;
+    password?: string;
   },
   adminUser: UserProfile
 ): Promise<UserProfile> {
@@ -1093,23 +1105,45 @@ export async function createVolunteer(
     throw new Error('Unauthorized: Only Admin can create volunteers');
   }
 
-  const list = getLocalItem<UserProfile[]>(STORAGE_KEYS.PROFILES, INITIAL_PROFILES);
-  if (list.some((u) => u.username.toLowerCase() === data.username.toLowerCase())) {
-    throw new Error('A user with this username already exists');
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot create volunteer.');
   }
 
-  const now = new Date().toISOString();
-  const newProfile: UserProfile = {
-    id: 'user-' + Date.now(),
-    ...data,
-    is_active: true,
-    created_at: now,
-    updated_at: now,
-  };
+  const token = await getFreshAdminAccessToken();
 
-  setLocalItem(STORAGE_KEYS.PROFILES, [newProfile, ...list]);
-  recordLocalAudit(adminUser, 'INSERT', 'profiles', newProfile.id, null, newProfile);
-  return newProfile;
+  const { data: edgeData, error: edgeError } = await supabase.functions.invoke('admin-users', {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: {
+      action: 'create_user',
+      full_name: data.full_name,
+      username: data.username,
+      role: data.role,
+      password: data.password || 'AIMPLB@2026',
+    },
+  });
+
+  if (edgeError || !edgeData?.profile) {
+    let errorMsg = edgeData?.error || edgeData?.message || edgeError?.message || 'Failed to create volunteer through Supabase Admin';
+    if (edgeError && (edgeError as any).context) {
+      try {
+        const errJson = await (edgeError as any).context.json();
+        if (errJson?.error || errJson?.message) {
+          errorMsg = errJson.error || errJson.message;
+        }
+        if (errJson?.details) {
+          errorMsg = `${errorMsg} (${errJson.details})`;
+        }
+      } catch (_) {}
+    }
+    console.error('[VolunteerService] Edge Function create_user failed:', errorMsg, edgeError || edgeData);
+    throw new Error(errorMsg);
+  }
+
+  await recordAuditLog(adminUser, 'INSERT', 'profiles', edgeData.profile.id, null, edgeData.profile);
+  notifyDbUpdate();
+  return edgeData.profile as UserProfile;
 }
 
 export async function updateVolunteer(
@@ -1121,44 +1155,128 @@ export async function updateVolunteer(
     throw new Error('Unauthorized: Only Admin can update volunteers');
   }
 
-  const list = getLocalItem<UserProfile[]>(STORAGE_KEYS.PROFILES, INITIAL_PROFILES);
-  const idx = list.findIndex((u) => u.id === id);
-  if (idx === -1) throw new Error('User not found');
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot update volunteer.');
+  }
 
-  const old = list[idx];
-  const updated: UserProfile = {
-    ...old,
-    ...data,
-    updated_at: new Date().toISOString(),
-  };
+  if (typeof data.is_active === 'boolean') {
+    try {
+      const token = await getFreshAdminAccessToken();
+      const { data: edgeData, error: edgeError } = await supabase.functions.invoke('admin-users', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: {
+          action: 'toggle_active',
+          user_id: id,
+          is_active: data.is_active,
+        },
+      });
+      if (!edgeError && edgeData?.profile) {
+        await recordAuditLog(adminUser, 'TOGGLE_ACTIVE', 'profiles', id, null, edgeData.profile);
+        notifyDbUpdate();
+        return edgeData.profile as UserProfile;
+      }
+    } catch (e) {
+      console.warn('Edge function toggle_active failed, falling back to direct profile update:', e);
+    }
+  }
 
-  list[idx] = updated;
-  setLocalItem(STORAGE_KEYS.PROFILES, [...list]);
-  recordLocalAudit(adminUser, 'UPDATE', 'profiles', id, old, updated);
-  return updated;
+  const { id: _id, created_at: _ca, ...cleanData } = data as any;
+  const { data: updated, error } = await supabase
+    .from('profiles')
+    .update({ ...cleanData, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error || !updated) {
+    console.error(`[VolunteerService] Supabase UPDATE failed (${id}):`, error);
+    throw new Error(`Failed to update profile: ${error?.message || 'Database error'} (${error?.code || 'ERR'})`);
+  }
+
+  await recordAuditLog(adminUser, 'UPDATE', 'profiles', id, null, updated);
+  notifyDbUpdate();
+  return updated as UserProfile;
+}
+
+export async function resetVolunteerPassword(
+  userId: string,
+  newPassword: string,
+  adminUser: UserProfile
+): Promise<{ success: boolean; message?: string }> {
+  if (adminUser.role !== 'Admin') {
+    throw new Error('Unauthorized: Only Admin can reset passwords');
+  }
+
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot reset password.');
+  }
+
+  const token = await getFreshAdminAccessToken();
+
+  const { data, error } = await supabase.functions.invoke('admin-users', {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: {
+      action: 'reset_password',
+      user_id: userId,
+      new_password: newPassword,
+    },
+  });
+
+  if (error || !data?.success) {
+    let msg = data?.error || data?.message || error?.message || 'Password reset failed via server.';
+    if (error && (error as any).context) {
+      try {
+        const errJson = await (error as any).context.json();
+        if (errJson?.error || errJson?.message) {
+          msg = errJson.error || errJson.message;
+        }
+      } catch (_) {}
+    }
+    throw new Error(msg);
+  }
+
+  await recordAuditLog(adminUser, 'RESET_PASSWORD', 'profiles', userId, null, { success: true });
+  return { success: true, message: data?.message || 'Password reset successfully.' };
 }
 
 // -------------------------------------------------------------
 // AUDIT LOGS & SETTINGS
 // -------------------------------------------------------------
 export async function getAuditLogs(): Promise<AuditLog[]> {
-  if (isSupabaseConfigured) {
-    const { data, error } = await supabase
-      .from('audit_logs')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(100);
-    if (!error && data) return data as AuditLog[];
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot load audit logs.');
   }
-  return getLocalItem<AuditLog[]>(STORAGE_KEYS.AUDIT, INITIAL_AUDIT_LOGS);
+
+  const { data, error } = await supabase
+    .from('audit_logs')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.error('[AuditLogsService] Supabase SELECT failed:', error);
+    throw new Error(`Failed to load audit logs: ${error.message} (${error.code})`);
+  }
+
+  return (data || []) as AuditLog[];
 }
 
 export async function getSystemSettings(): Promise<SystemSettings[]> {
-  if (isSupabaseConfigured) {
-    const { data, error } = await supabase.from('system_settings').select('*');
-    if (!error && data) return data as SystemSettings[];
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot load system settings.');
   }
-  return getLocalItem<SystemSettings[]>(STORAGE_KEYS.SETTINGS, INITIAL_SYSTEM_SETTINGS);
+
+  const { data, error } = await supabase.from('system_settings').select('*');
+  if (error) {
+    console.error('[SystemSettingsService] Supabase SELECT failed:', error);
+    throw new Error(`Failed to load system settings: ${error.message} (${error.code})`);
+  }
+
+  return (data || []) as SystemSettings[];
 }
 
 export async function updateSystemSetting(
@@ -1170,32 +1288,26 @@ export async function updateSystemSetting(
     throw new Error('Unauthorized: Only Admin can modify system settings');
   }
 
-  if (isSupabaseConfigured) {
-    await supabase
-      .from('system_settings')
-      .upsert({ setting_key: key, setting_value: value, updated_at: new Date().toISOString() });
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot update system settings.');
   }
 
-  const list = getLocalItem<SystemSettings[]>(STORAGE_KEYS.SETTINGS, INITIAL_SYSTEM_SETTINGS);
-  const idx = list.findIndex((s) => s.setting_key === key);
-  const now = new Date().toISOString();
-
-  if (idx >= 0) {
-    const old = list[idx];
-    list[idx] = { ...old, setting_value: value, updated_at: now };
-    recordLocalAudit(adminUser, 'UPDATE', 'system_settings', key, old, list[idx]);
-  } else {
-    const newSett: SystemSettings = {
-      id: 'sett-' + Date.now(),
+  const { error } = await supabase
+    .from('system_settings')
+    .upsert({
       setting_key: key,
       setting_value: value,
-      updated_at: now,
-    };
-    list.push(newSett);
-    recordLocalAudit(adminUser, 'INSERT', 'system_settings', key, null, newSett);
+      updated_by: adminUser.id,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'setting_key' });
+
+  if (error) {
+    console.error(`[SystemSettingsService] Supabase UPSERT failed (${key}):`, error);
+    throw new Error(`Failed to update system setting: ${error.message} (${error.code})`);
   }
 
-  setLocalItem(STORAGE_KEYS.SETTINGS, [...list]);
+  await recordAuditLog(adminUser, 'UPDATE', 'system_settings', key, null, { setting_key: key, setting_value: value });
+  notifyDbUpdate();
 }
 
 // -------------------------------------------------------------
@@ -1205,26 +1317,23 @@ export async function getEventAttendanceRecords(
   inviteeId?: string,
   eventDate?: string
 ): Promise<EventAttendanceRecord[]> {
-  const invitees = await getInvitees();
-  const inviteeMap = new Map(invitees.map((i) => [i.id, i]));
-
-  if (isSupabaseConfigured) {
-    let query = supabase.from('event_attendance').select('*').order('entry_time', { ascending: false });
-    if (inviteeId) query = query.eq('invitee_id', inviteeId);
-    if (eventDate) query = query.eq('event_date', eventDate);
-    const { data, error } = await query;
-    if (!error && data) {
-      return (data as EventAttendanceRecord[]).map((r) => ({
-        ...r,
-        invitee: inviteeMap.get(r.invitee_id),
-      }));
-    }
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot load event attendance.');
   }
 
-  let list = getLocalItem<EventAttendanceRecord[]>(STORAGE_KEYS.EVENT_ATTENDANCE, INITIAL_EVENT_ATTENDANCE);
-  if (inviteeId) list = list.filter((r) => r.invitee_id === inviteeId);
-  if (eventDate) list = list.filter((r) => r.event_date === eventDate);
-  return list.map((r) => ({
+  const inviteeMap = await getInviteeLookupMap();
+
+  let query = supabase.from('event_attendance').select('*').order('entry_time', { ascending: false });
+  if (inviteeId) query = query.eq('invitee_id', inviteeId);
+  if (eventDate) query = query.eq('event_date', eventDate);
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('[EventAttendanceService] Supabase SELECT failed:', error);
+    throw new Error(`Failed to load event attendance: ${error.message} (${error.code})`);
+  }
+
+  return ((data || []) as EventAttendanceRecord[]).map((r) => ({
     ...r,
     invitee: inviteeMap.get(r.invitee_id),
   }));
@@ -1237,17 +1346,57 @@ export async function recordEventEntry(
   notes?: string,
   scanMode: 'QR_CAMERA' | 'MANUAL_SEARCH' | 'MANUAL_OVERRIDE' = 'QR_CAMERA'
 ): Promise<EventAttendanceRecord> {
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot record event entry.');
+  }
+
   const now = new Date().toISOString();
   const date = eventDate || now.slice(0, 10);
 
-  const list = getLocalItem<EventAttendanceRecord[]>(STORAGE_KEYS.EVENT_ATTENDANCE, INITIAL_EVENT_ATTENDANCE);
+  // 1. Try atomic PostgreSQL RPC for high-concurrency protection
+  try {
+    const { data: rpcRes, error: rpcErr } = await supabase.rpc('record_gate_entry', {
+      p_invitee_id: inviteeId,
+      p_recorded_by: user.id,
+      p_recorded_by_name: user.full_name,
+      p_event_date: date,
+      p_notes: notes || null,
+      p_scan_mode: scanMode,
+    });
 
-  // Validation: Prevent duplicate IN operations
-  const activeSession = list.find(
-    (r) => r.invitee_id === inviteeId && r.status === 'IN' && !r.exit_time
-  );
-  if (activeSession) {
-    const entryFormatted = new Date(activeSession.entry_time).toLocaleTimeString([], {
+    if (!rpcErr && rpcRes) {
+      if (rpcRes.success === false) {
+        throw new Error(rpcRes.message || 'Gate entry rejected.');
+      }
+      notifyDbUpdate();
+      return rpcRes.record as EventAttendanceRecord;
+    }
+    if (rpcErr && rpcErr.code !== '42883') {
+      console.warn('[EventAttendanceService] RPC record_gate_entry error:', rpcErr);
+      if (rpcErr.message && !rpcErr.message.includes('function public.record_gate_entry')) {
+        throw new Error(rpcErr.message);
+      }
+    }
+  } catch (err: any) {
+    if (err.message && !err.message.includes('42883') && !err.message.includes('function public.record_gate_entry') && !err.code) {
+      throw err;
+    }
+  }
+
+  // 2. Direct database fallback with unique constraint protection
+  const { data: activeSessions, error: activeErr } = await supabase
+    .from('event_attendance')
+    .select('*')
+    .eq('invitee_id', inviteeId)
+    .eq('status', 'IN')
+    .is('exit_time', null);
+
+  if (activeErr) {
+    console.error('[EventAttendanceService] Active session check failed:', activeErr);
+  }
+
+  if (activeSessions && activeSessions.length > 0) {
+    const entryFormatted = new Date(activeSessions[0].entry_time).toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit',
     });
@@ -1256,32 +1405,36 @@ export async function recordEventEntry(
     );
   }
 
-  const newRec: EventAttendanceRecord = {
-    id: 'evt-att-' + Date.now(),
+  const newRec = {
     invitee_id: inviteeId,
     event_date: date,
     entry_time: now,
     status: 'IN',
     entry_recorded_by: user.id,
     entry_recorded_by_name: user.full_name,
-    entry_notes: notes,
+    entry_notes: notes || null,
     scan_mode: scanMode,
     is_corrected: false,
-    created_at: now,
-    updated_at: now,
+    duration_minutes: null,
   };
 
-  if (isSupabaseConfigured) {
-    const { data, error } = await supabase.from('event_attendance').insert([newRec]).select().single();
-    if (!error && data) {
-      window.dispatchEvent(new CustomEvent('aimplb_db_update'));
-      return data as EventAttendanceRecord;
+  const { data: inserted, error: insertErr } = await supabase
+    .from('event_attendance')
+    .insert([newRec])
+    .select()
+    .single();
+
+  if (insertErr || !inserted) {
+    console.error('[EventAttendanceService] Supabase INSERT failed:', insertErr);
+    if (insertErr?.code === '23505') {
+      throw new Error('Duplicate Scan Blocked: Delegate is already checked IN. Record gate exit (OUT) before re-entering.');
     }
+    throw new Error(`Failed to record event entry: ${insertErr?.message || 'Database error'} (${insertErr?.code || 'ERR'})`);
   }
 
-  setLocalItem(STORAGE_KEYS.EVENT_ATTENDANCE, [newRec, ...list]);
-  recordLocalAudit(user, 'EVENT_ENTRY', 'event_attendance', newRec.id, null, newRec);
-  return newRec;
+  await recordAuditLog(user, 'EVENT_ENTRY', 'event_attendance', inserted.id, null, inserted);
+  notifyDbUpdate();
+  return inserted as EventAttendanceRecord;
 }
 
 export async function recordEventExit(
@@ -1290,14 +1443,62 @@ export async function recordEventExit(
   notes?: string,
   scanMode: 'QR_CAMERA' | 'MANUAL_SEARCH' | 'MANUAL_OVERRIDE' = 'QR_CAMERA'
 ): Promise<EventAttendanceRecord> {
-  const now = new Date().toISOString();
-  const list = getLocalItem<EventAttendanceRecord[]>(STORAGE_KEYS.EVENT_ATTENDANCE, INITIAL_EVENT_ATTENDANCE);
-
-  // Validation: Validate that delegate is currently inside
-  let rec = list.find((r) => r.id === recordIdOrInviteeId && r.status === 'IN' && !r.exit_time);
-  if (!rec) {
-    rec = list.find((r) => r.invitee_id === recordIdOrInviteeId && r.status === 'IN' && !r.exit_time);
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot record event exit.');
   }
+
+  // 1. Try atomic PostgreSQL RPC for high-concurrency protection
+  try {
+    const { data: rpcRes, error: rpcErr } = await supabase.rpc('record_gate_exit', {
+      p_identifier: recordIdOrInviteeId,
+      p_recorded_by: user.id,
+      p_recorded_by_name: user.full_name,
+      p_notes: notes || null,
+      p_scan_mode: scanMode,
+    });
+
+    if (!rpcErr && rpcRes) {
+      if (rpcRes.success === false) {
+        throw new Error(rpcRes.message || 'Gate exit rejected.');
+      }
+      notifyDbUpdate();
+      return rpcRes.record as EventAttendanceRecord;
+    }
+    if (rpcErr && rpcErr.code !== '42883') {
+      console.warn('[EventAttendanceService] RPC record_gate_exit error:', rpcErr);
+      if (rpcErr.message && !rpcErr.message.includes('function public.record_gate_exit')) {
+        throw new Error(rpcErr.message);
+      }
+    }
+  } catch (err: any) {
+    if (err.message && !err.message.includes('42883') && !err.message.includes('function public.record_gate_exit') && !err.code) {
+      throw err;
+    }
+  }
+
+  // 2. Direct database fallback
+  const now = new Date().toISOString();
+
+  // Validate that delegate is currently inside
+  let query = supabase
+    .from('event_attendance')
+    .select('*')
+    .eq('status', 'IN')
+    .is('exit_time', null);
+
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recordIdOrInviteeId);
+  if (isUuid) {
+    query = query.or(`id.eq.${recordIdOrInviteeId},invitee_id.eq.${recordIdOrInviteeId}`);
+  } else {
+    query = query.eq('id', recordIdOrInviteeId);
+  }
+
+  const { data: records, error: queryErr } = await query;
+  if (queryErr) {
+    console.error('[EventAttendanceService] Find active session failed:', queryErr);
+  }
+
+  const rec = records?.[0];
   if (!rec) {
     throw new Error(
       'Invalid Scan OUT: Delegate is not currently inside venue. An active gate entry (IN) must exist before recording exit.'
@@ -1308,8 +1509,7 @@ export async function recordEventExit(
   const exitTime = new Date(now).getTime();
   const durationMinutes = Math.max(0, Math.round((exitTime - entryTime) / (1000 * 60)));
 
-  const updated: EventAttendanceRecord = {
-    ...rec,
+  const updatePayload = {
     exit_time: now,
     status: 'OUT',
     exit_recorded_by: user.id,
@@ -1320,18 +1520,21 @@ export async function recordEventExit(
     updated_at: now,
   };
 
-  if (isSupabaseConfigured) {
-    await supabase.from('event_attendance').update(updated).eq('id', rec.id);
-    window.dispatchEvent(new CustomEvent('aimplb_db_update'));
+  const { data: updated, error: updateErr } = await supabase
+    .from('event_attendance')
+    .update(updatePayload)
+    .eq('id', rec.id)
+    .select()
+    .single();
+
+  if (updateErr || !updated) {
+    console.error(`[EventAttendanceService] Supabase UPDATE failed (${rec.id}):`, updateErr);
+    throw new Error(`Failed to record event exit: ${updateErr?.message || 'Database error'} (${updateErr?.code || 'ERR'})`);
   }
 
-  const idx = list.findIndex((r) => r.id === rec!.id);
-  if (idx !== -1) {
-    list[idx] = updated;
-    setLocalItem(STORAGE_KEYS.EVENT_ATTENDANCE, [...list]);
-  }
-  recordLocalAudit(user, 'EVENT_EXIT', 'event_attendance', rec.id, rec, updated);
-  return updated;
+  await recordAuditLog(user, 'EVENT_EXIT', 'event_attendance', rec.id, rec, updated);
+  notifyDbUpdate();
+  return updated as EventAttendanceRecord;
 }
 
 export async function correctEventAttendance(
@@ -1340,49 +1543,65 @@ export async function correctEventAttendance(
   user: UserProfile,
   reason?: string
 ): Promise<EventAttendanceRecord> {
-  const now = new Date().toISOString();
-  const list = getLocalItem<EventAttendanceRecord[]>(STORAGE_KEYS.EVENT_ATTENDANCE, INITIAL_EVENT_ATTENDANCE);
-  const idx = list.findIndex((r) => r.id === recordId);
-  if (idx === -1) throw new Error('Event attendance record not found');
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot correct event attendance.');
+  }
 
-  const old = list[idx];
-  const updated: EventAttendanceRecord = {
-    ...old,
-    ...updates,
+  const now = new Date().toISOString();
+  const { id: _id, invitee: _inv, created_at: _ca, ...cleanUpdates } = updates as any;
+
+  const updatePayload: any = {
+    ...cleanUpdates,
     is_corrected: true,
     corrected_by: user.id,
     correction_reason: reason || updates.correction_reason || 'Administrative manual correction',
     updated_at: now,
   };
 
-  if (updated.entry_time && updated.exit_time) {
-    const entryTime = new Date(updated.entry_time).getTime();
-    const exitTime = new Date(updated.exit_time).getTime();
+  if (updatePayload.entry_time && updatePayload.exit_time) {
+    const entryTime = new Date(updatePayload.entry_time).getTime();
+    const exitTime = new Date(updatePayload.exit_time).getTime();
     if (exitTime >= entryTime) {
-      updated.duration_minutes = Math.round((exitTime - entryTime) / (1000 * 60));
+      updatePayload.duration_minutes = Math.round((exitTime - entryTime) / (1000 * 60));
     }
   }
 
-  if (isSupabaseConfigured) {
-    await supabase.from('event_attendance').update(updated).eq('id', recordId);
-    window.dispatchEvent(new CustomEvent('aimplb_db_update'));
+  const { data: updated, error: updateErr } = await supabase
+    .from('event_attendance')
+    .update(updatePayload)
+    .eq('id', recordId)
+    .select()
+    .single();
+
+  if (updateErr || !updated) {
+    console.error(`[EventAttendanceService] Supabase UPDATE failed (${recordId}):`, updateErr);
+    throw new Error(`Failed to correct event attendance: ${updateErr?.message || 'Database error'} (${updateErr?.code || 'ERR'})`);
   }
 
-  list[idx] = updated;
-  setLocalItem(STORAGE_KEYS.EVENT_ATTENDANCE, [...list]);
-  recordLocalAudit(user, 'MANUAL_CORRECTION', 'event_attendance', recordId, old, updated);
-  return updated;
+  await recordAuditLog(user, 'MANUAL_CORRECTION', 'event_attendance', recordId, null, updated);
+  notifyDbUpdate();
+  return updated as EventAttendanceRecord;
 }
 
 // -------------------------------------------------------------
 // MEETING ROOMS SERVICE
 // -------------------------------------------------------------
 export async function getMeetingRooms(): Promise<MeetingRoom[]> {
-  if (isSupabaseConfigured) {
-    const { data, error } = await supabase.from('meeting_rooms').select('*').order('created_at', { ascending: true });
-    if (!error && data) return data as MeetingRoom[];
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot load meeting rooms.');
   }
-  return getLocalItem<MeetingRoom[]>(STORAGE_KEYS.MEETING_ROOMS, INITIAL_MEETING_ROOMS);
+
+  const { data, error } = await supabase
+    .from('meeting_rooms')
+    .select('*')
+    .order('room_order', { ascending: true });
+
+  if (error) {
+    console.error('[MeetingRoomsService] Supabase SELECT failed:', error);
+    throw new Error(`Failed to load meeting rooms: ${error.message} (${error.code})`);
+  }
+
+  return (data || []) as MeetingRoom[];
 }
 
 export async function createMeetingRoom(
@@ -1390,25 +1609,32 @@ export async function createMeetingRoom(
   capacity = 100,
   user?: UserProfile
 ): Promise<MeetingRoom> {
-  const now = new Date().toISOString();
-  const newRoom: MeetingRoom = {
-    id: 'room-' + Date.now(),
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot create meeting room.');
+  }
+
+  const payload = {
     name: name.trim(),
     capacity,
     is_active: true,
-    created_at: now,
-    updated_at: now,
   };
 
-  if (isSupabaseConfigured) {
-    const { data, error } = await supabase.from('meeting_rooms').insert([newRoom]).select().single();
-    if (!error && data) return data as MeetingRoom;
+  const { data: inserted, error } = await supabase
+    .from('meeting_rooms')
+    .insert([payload])
+    .select()
+    .single();
+
+  if (error || !inserted) {
+    console.error('[MeetingRoomsService] Supabase INSERT failed:', error);
+    throw new Error(`Failed to create meeting room: ${error?.message || 'Database error'} (${error?.code || 'ERR'})`);
   }
 
-  const list = getLocalItem<MeetingRoom[]>(STORAGE_KEYS.MEETING_ROOMS, INITIAL_MEETING_ROOMS);
-  setLocalItem(STORAGE_KEYS.MEETING_ROOMS, [...list, newRoom]);
-  if (user) recordLocalAudit(user, 'INSERT', 'meeting_rooms', newRoom.id, null, newRoom);
-  return newRoom;
+  if (user) {
+    await recordAuditLog(user, 'INSERT', 'meeting_rooms', inserted.id, null, inserted);
+  }
+  notifyDbUpdate();
+  return inserted as MeetingRoom;
 }
 
 export async function updateMeetingRoom(
@@ -1416,26 +1642,31 @@ export async function updateMeetingRoom(
   updates: Partial<MeetingRoom>,
   user: UserProfile
 ): Promise<MeetingRoom> {
-  const now = new Date().toISOString();
-  const list = getLocalItem<MeetingRoom[]>(STORAGE_KEYS.MEETING_ROOMS, INITIAL_MEETING_ROOMS);
-  const idx = list.findIndex((r) => r.id === id);
-  if (idx === -1) throw new Error('Meeting room not found');
-
-  const old = list[idx];
-  const updated: MeetingRoom = {
-    ...old,
-    ...updates,
-    updated_at: now,
-  };
-
-  if (isSupabaseConfigured) {
-    await supabase.from('meeting_rooms').update(updated).eq('id', id);
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot update meeting room.');
   }
 
-  list[idx] = updated;
-  setLocalItem(STORAGE_KEYS.MEETING_ROOMS, [...list]);
-  recordLocalAudit(user, 'UPDATE', 'meeting_rooms', id, old, updated);
-  return updated;
+  const { id: _id, created_at: _ca, ...cleanUpdates } = updates as any;
+  const payload = {
+    ...cleanUpdates,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data: updated, error } = await supabase
+    .from('meeting_rooms')
+    .update(payload)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error || !updated) {
+    console.error(`[MeetingRoomsService] Supabase UPDATE failed (${id}):`, error);
+    throw new Error(`Failed to update meeting room: ${error?.message || 'Record not found'} (${error?.code || 'ERR'})`);
+  }
+
+  await recordAuditLog(user, 'UPDATE', 'meeting_rooms', id, null, updated);
+  notifyDbUpdate();
+  return updated as MeetingRoom;
 }
 
 // -------------------------------------------------------------
@@ -1446,28 +1677,24 @@ export async function getMeetingAttendanceRecords(
   roomName?: string,
   date?: string
 ): Promise<MeetingAttendanceRecord[]> {
-  const invitees = await getInvitees();
-  const inviteeMap = new Map(invitees.map((i) => [i.id, i]));
-
-  if (isSupabaseConfigured) {
-    let query = supabase.from('meeting_attendance').select('*').order('in_time', { ascending: false });
-    if (inviteeId) query = query.eq('invitee_id', inviteeId);
-    if (roomName) query = query.eq('room_name', roomName);
-    if (date) query = query.eq('meeting_date', date);
-    const { data, error } = await query;
-    if (!error && data) {
-      return (data as MeetingAttendanceRecord[]).map((r) => ({
-        ...r,
-        invitee: inviteeMap.get(r.invitee_id),
-      }));
-    }
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot load meeting attendance.');
   }
 
-  let list = getLocalItem<MeetingAttendanceRecord[]>(STORAGE_KEYS.MEETING_ATTENDANCE, INITIAL_MEETING_ATTENDANCE);
-  if (inviteeId) list = list.filter((r) => r.invitee_id === inviteeId);
-  if (roomName) list = list.filter((r) => r.room_name === roomName);
-  if (date) list = list.filter((r) => r.meeting_date === date);
-  return list.map((r) => ({
+  const inviteeMap = await getInviteeLookupMap();
+
+  let query = supabase.from('meeting_attendance').select('*').order('in_time', { ascending: false });
+  if (inviteeId) query = query.eq('invitee_id', inviteeId);
+  if (roomName) query = query.eq('room_name', roomName);
+  if (date) query = query.eq('meeting_date', date);
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('[MeetingAttendanceService] Supabase SELECT failed:', error);
+    throw new Error(`Failed to load meeting attendance: ${error.message} (${error.code})`);
+  }
+
+  return ((data || []) as MeetingAttendanceRecord[]).map((r) => ({
     ...r,
     invitee: inviteeMap.get(r.invitee_id),
   }));
@@ -1480,11 +1707,14 @@ export async function recordMeetingEntry(
   user: UserProfile,
   date?: string
 ): Promise<MeetingAttendanceRecord> {
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot record meeting entry.');
+  }
+
   const now = new Date().toISOString();
   const meetingDate = date || now.slice(0, 10);
 
-  const newRec: MeetingAttendanceRecord = {
-    id: 'mtg-att-' + Date.now(),
+  const payload = {
     invitee_id: inviteeId,
     room_name: roomName,
     session_name: sessionName,
@@ -1493,19 +1723,22 @@ export async function recordMeetingEntry(
     status: 'IN',
     recorded_by: user.id,
     recorded_by_name: user.full_name,
-    created_at: now,
-    updated_at: now,
   };
 
-  if (isSupabaseConfigured) {
-    const { data, error } = await supabase.from('meeting_attendance').insert([newRec]).select().single();
-    if (!error && data) return data as MeetingAttendanceRecord;
+  const { data: inserted, error } = await supabase
+    .from('meeting_attendance')
+    .insert([payload])
+    .select()
+    .single();
+
+  if (error || !inserted) {
+    console.error('[MeetingAttendanceService] Supabase INSERT failed:', error);
+    throw new Error(`Failed to record meeting entry: ${error?.message || 'Database error'} (${error?.code || 'ERR'})`);
   }
 
-  const list = getLocalItem<MeetingAttendanceRecord[]>(STORAGE_KEYS.MEETING_ATTENDANCE, INITIAL_MEETING_ATTENDANCE);
-  setLocalItem(STORAGE_KEYS.MEETING_ATTENDANCE, [newRec, ...list]);
-  recordLocalAudit(user, 'MEETING_ENTRY', 'meeting_attendance', newRec.id, null, newRec);
-  return newRec;
+  await recordAuditLog(user, 'MEETING_ENTRY', 'meeting_attendance', inserted.id, null, inserted);
+  notifyDbUpdate();
+  return inserted as MeetingAttendanceRecord;
 }
 
 export async function recordMeetingExit(
@@ -1513,43 +1746,63 @@ export async function recordMeetingExit(
   user: UserProfile,
   notes?: string
 ): Promise<MeetingAttendanceRecord> {
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Cannot record meeting exit.');
+  }
+
   const now = new Date().toISOString();
-  const list = getLocalItem<MeetingAttendanceRecord[]>(STORAGE_KEYS.MEETING_ATTENDANCE, INITIAL_MEETING_ATTENDANCE);
 
-  let rec = list.find((r) => r.id === recordIdOrInviteeId);
-  if (!rec) {
-    rec = list.find((r) => r.invitee_id === recordIdOrInviteeId && r.status === 'IN' && !r.out_time);
-  }
-  if (!rec) {
-    rec = list.find((r) => r.invitee_id === recordIdOrInviteeId);
-  }
-  if (!rec) throw new Error('No active meeting room session found');
+  // Find active session
+  let query = supabase
+    .from('meeting_attendance')
+    .select('*')
+    .eq('status', 'IN')
+    .is('out_time', null);
 
-  const inTime = new Date(rec.in_time || rec.entry_time || rec.created_at).getTime();
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recordIdOrInviteeId);
+  if (isUuid) {
+    query = query.or(`id.eq.${recordIdOrInviteeId},invitee_id.eq.${recordIdOrInviteeId}`);
+  } else {
+    query = query.eq('id', recordIdOrInviteeId);
+  }
+
+  const { data: records, error: queryErr } = await query;
+  if (queryErr) {
+    console.error('[MeetingAttendanceService] Find active session failed:', queryErr);
+  }
+
+  const rec = records?.[0];
+  if (!rec) {
+    throw new Error('No active meeting room session found for delegate');
+  }
+
+  const inTime = new Date(rec.in_time || rec.created_at).getTime();
   const outTime = new Date(now).getTime();
   const duration = Math.max(0, Math.round((outTime - inTime) / (1000 * 60)));
 
-  const updated: MeetingAttendanceRecord = {
-    ...rec,
+  const updatePayload = {
     out_time: now,
-    exit_time: now,
     status: 'OUT',
     notes: notes ?? rec.notes,
     duration_minutes: duration,
     updated_at: now,
   };
 
-  if (isSupabaseConfigured) {
-    await supabase.from('meeting_attendance').update(updated).eq('id', rec.id);
+  const { data: updated, error: updateErr } = await supabase
+    .from('meeting_attendance')
+    .update(updatePayload)
+    .eq('id', rec.id)
+    .select()
+    .single();
+
+  if (updateErr || !updated) {
+    console.error(`[MeetingAttendanceService] Supabase UPDATE failed (${rec.id}):`, updateErr);
+    throw new Error(`Failed to record meeting exit: ${updateErr?.message || 'Database error'} (${updateErr?.code || 'ERR'})`);
   }
 
-  const idx = list.findIndex((r) => r.id === rec!.id);
-  if (idx !== -1) {
-    list[idx] = updated;
-    setLocalItem(STORAGE_KEYS.MEETING_ATTENDANCE, [...list]);
-  }
-  recordLocalAudit(user, 'MEETING_EXIT', 'meeting_attendance', rec.id, rec, updated);
-  return updated;
+  await recordAuditLog(user, 'MEETING_EXIT', 'meeting_attendance', rec.id, rec, updated);
+  notifyDbUpdate();
+  return updated as MeetingAttendanceRecord;
 }
 
 // -------------------------------------------------------------
@@ -1604,7 +1857,7 @@ export async function getInviteeActivityTimeline(inviteeId: string): Promise<Uni
       id: `evt-in-${ea.id}`,
       invitee_id: inviteeId,
       type: 'reception',
-      title: `Event Gate Entry (IN)`,
+      title: 'Event Gate Entry (IN)',
       description: `Entered venue on ${ea.event_date}${ea.entry_recorded_by_name ? ` (Recorded by ${ea.entry_recorded_by_name})` : ''}${
         ea.entry_notes ? ` • ${ea.entry_notes}` : ''
       }`,
@@ -1618,7 +1871,7 @@ export async function getInviteeActivityTimeline(inviteeId: string): Promise<Uni
         id: `evt-out-${ea.id}`,
         invitee_id: inviteeId,
         type: 'reception',
-        title: `Event Gate Exit (OUT)`,
+        title: 'Event Gate Exit (OUT)',
         description: `Exited venue on ${ea.event_date}${ea.duration_minutes ? ` • Stay duration: ${ea.duration_minutes} mins` : ''}${
           ea.exit_recorded_by_name ? ` (Recorded by ${ea.exit_recorded_by_name})` : ''
         }`,
@@ -1664,5 +1917,3 @@ export async function getInviteeActivityTimeline(inviteeId: string): Promise<Uni
   // Sort descending by timestamp
   return events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
-
-

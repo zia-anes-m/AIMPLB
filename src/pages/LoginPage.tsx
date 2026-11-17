@@ -7,12 +7,6 @@ import {
   EyeOff,
   ShieldCheck,
   AlertCircle,
-  PlaneTakeoff,
-  Building2,
-  UtensilsCrossed,
-  UserCheck,
-  Armchair,
-  Shield,
   ArrowRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -24,7 +18,7 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser, login, getDashboardRoute, isLoading: authLoading } = useAuth();
 
-  const [userId, setUserId] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,9 +37,9 @@ export const LoginPage: React.FC = () => {
     if (isLoading) return; // Prevent concurrent submissions
     setError(null);
 
-    const trimmedId = userId.trim();
-    if (!trimmedId) {
-      setError('Please enter your assigned User ID or email.');
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) {
+      setError('Please enter your username.');
       return;
     }
 
@@ -56,7 +50,7 @@ export const LoginPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const res = await login(trimmedId, password);
+      const res = await login(trimmedUsername, password);
       if (res.success && res.user) {
         // Navigate immediately using the returned user profile role on the very first click
         navigate(getDashboardRoute(res.user.role), { replace: true });
@@ -71,12 +65,6 @@ export const LoginPage: React.FC = () => {
       setError(err.message || 'An unexpected error occurred during sign-in.');
       setIsLoading(false);
     }
-  };
-
-  const handleQuickFill = (roleUsername: string) => {
-    setUserId(roleUsername);
-    setPassword('Aim2026!');
-    setError(null);
   };
 
   return (
@@ -100,10 +88,10 @@ export const LoginPage: React.FC = () => {
         <div className="bg-white py-7 sm:py-9 px-4 sm:px-10 shadow-dropdown border border-[#E3E7E4] rounded-2xl">
           <div className="mb-6 pb-4 border-b border-[#F4F6F4] text-center">
             <h2 className="text-sm font-bold uppercase tracking-wider text-[#1A221E]">
-              Authorized Volunteer Sign In
+              Authorized Sign In
             </h2>
             <p className="text-xs text-[#69756F] mt-1">
-              Enter your assigned username to access your department
+              Enter your username and password to access the portal
             </p>
           </div>
 
@@ -124,19 +112,20 @@ export const LoginPage: React.FC = () => {
             >
               <ShieldCheck className="h-4 w-4 shrink-0 text-[#164734] mt-0.5" />
               <span>
-                To reset volunteer credentials, contact the Chief Event Coordinator at the Central Secretariat desk.
+                To reset credentials, contact the Chief Event Coordinator at the Central Secretariat desk.
               </span>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
-              id="userId"
-              label="User ID / Volunteer Username"
+              id="username"
+              type="text"
+              label="Username"
               required
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              placeholder="e.g. admin or transport_team"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Enter your username"
               icon={<User className="h-4 w-4" />}
             />
 
@@ -188,98 +177,6 @@ export const LoginPage: React.FC = () => {
               <ArrowRight className="h-4 w-4" />
             </Button>
           </form>
-
-          {/* Quick Access Preset Accounts Chips */}
-          <div className="mt-6 pt-5 border-t border-[#F4F6F4]">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[#69756F] text-center mb-2.5">
-              Fast Access (Select Role to Test)
-            </p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => handleQuickFill('admin')}
-                className="p-2 bg-[#FAF9F6] border border-[#E3E7E4] rounded-xl text-left hover:bg-[#E8F1EC] hover:border-[#C5DEC8] transition-all flex items-center gap-2"
-              >
-                <div className="p-1 rounded bg-[#164734] text-white shrink-0">
-                  <Shield className="h-3 w-3" />
-                </div>
-                <div className="overflow-hidden min-w-0">
-                  <div className="font-bold text-[#164734] text-[11px] truncate">Admin</div>
-                  <div className="text-[10px] text-[#69756F] truncate">admin</div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickFill('transport_team')}
-                className="p-2 bg-[#FAF9F6] border border-[#E3E7E4] rounded-xl text-left hover:bg-[#E8F1EC] hover:border-[#C5DEC8] transition-all flex items-center gap-2"
-              >
-                <div className="p-1 rounded bg-[#164734] text-white shrink-0">
-                  <PlaneTakeoff className="h-3 w-3" />
-                </div>
-                <div className="overflow-hidden min-w-0">
-                  <div className="font-bold text-[#164734] text-[11px] truncate">Transport</div>
-                  <div className="text-[10px] text-[#69756F] truncate">transport_team</div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickFill('accommodation_team')}
-                className="p-2 bg-[#FAF9F6] border border-[#E3E7E4] rounded-xl text-left hover:bg-[#E8F1EC] hover:border-[#C5DEC8] transition-all flex items-center gap-2"
-              >
-                <div className="p-1 rounded bg-[#164734] text-white shrink-0">
-                  <Building2 className="h-3 w-3" />
-                </div>
-                <div className="overflow-hidden min-w-0">
-                  <div className="font-bold text-[#164734] text-[11px] truncate">Accommodation</div>
-                  <div className="text-[10px] text-[#69756F] truncate">accommodation_team</div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickFill('food_team')}
-                className="p-2 bg-[#FAF9F6] border border-[#E3E7E4] rounded-xl text-left hover:bg-[#E8F1EC] hover:border-[#C5DEC8] transition-all flex items-center gap-2"
-              >
-                <div className="p-1 rounded bg-[#164734] text-white shrink-0">
-                  <UtensilsCrossed className="h-3 w-3" />
-                </div>
-                <div className="overflow-hidden min-w-0">
-                  <div className="font-bold text-[#164734] text-[11px] truncate">Food Team</div>
-                  <div className="text-[10px] text-[#69756F] truncate">food_team</div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickFill('reception_team')}
-                className="p-2 bg-[#FAF9F6] border border-[#E3E7E4] rounded-xl text-left hover:bg-[#E8F1EC] hover:border-[#C5DEC8] transition-all flex items-center gap-2"
-              >
-                <div className="p-1 rounded bg-[#164734] text-white shrink-0">
-                  <UserCheck className="h-3 w-3" />
-                </div>
-                <div className="overflow-hidden min-w-0">
-                  <div className="font-bold text-[#164734] text-[11px] truncate">Reception</div>
-                  <div className="text-[10px] text-[#69756F] truncate">reception_team</div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickFill('hall_team')}
-                className="p-2 bg-[#FAF9F6] border border-[#E3E7E4] rounded-xl text-left hover:bg-[#E8F1EC] hover:border-[#C5DEC8] transition-all flex items-center gap-2"
-              >
-                <div className="p-1 rounded bg-[#164734] text-white shrink-0">
-                  <Armchair className="h-3 w-3" />
-                </div>
-                <div className="overflow-hidden min-w-0">
-                  <div className="font-bold text-[#164734] text-[11px] truncate">Meeting Hall</div>
-                  <div className="text-[10px] text-[#69756F] truncate">hall_team</div>
-                </div>
-              </button>
-            </div>
-          </div>
         </div>
 
         <p className="mt-5 text-center text-xs text-[#69756F]">

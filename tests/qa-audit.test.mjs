@@ -426,9 +426,9 @@ test('20. Refined ID Card Design: Logo Left Alignment, Dedicated Remarks, QR Lab
   assert.match(idCardTsx, /OFFICIAL GATE PASS/);
   assert.match(idCardTsx, /SCAN FOR ENTRY VERIFICATION/);
 
-  // 3. Dedicated Remarks section ALWAYS displayed (mobile + laptop)
-  assert.match(idCardTsx, /REMARKS:/);
+  // 3. Dedicated Remarks section displayed without redundant prefix
   assert.match(idCardTsx, /displayRemarks/);
+  assert.match(idCardTsx, /<span>\{displayRemarks\}<\/span>/);
   assert.match(idCardTsx, /wordBreak:\s*'break-word'/);
 
   // 4. Overlap prevention on desktop screen: flex-wrap with 90mm clearance
@@ -436,12 +436,12 @@ test('20. Refined ID Card Design: Logo Left Alignment, Dedicated Remarks, QR Lab
   assert.match(idCardPageTsx, /style=\{\{\s*width:\s*'90mm'\s*\}\}/);
 });
 
-test('21. ID Card Design Refinements: Enlarged QR Code (32-38mm), Consistent Rounded Corners & Empty Space Elimination', () => {
+test('21. ID Card Design Refinements: Enlarged QR Code (40mm), Consistent Rounded Corners & Empty Space Elimination', () => {
   const idCardTsx = fs.readFileSync(path.join(ROOT_DIR, 'src', 'components', 'id-cards', 'InviteeIDCard.tsx'), 'utf-8');
 
-  // 1. Enlarged QR Code target (35mm inside 39mm container with quiet zone)
-  assert.match(idCardTsx, /width:\s*'35mm',\s*height:\s*'35mm'/);
-  assert.match(idCardTsx, /width:\s*'39mm',\s*height:\s*'39mm'/);
+  // 1. Enlarged QR Code target (40mm inside 44mm container with quiet zone)
+  assert.match(idCardTsx, /width:\s*'40mm',\s*height:\s*'40mm'/);
+  assert.match(idCardTsx, /width:\s*'44mm',\s*height:\s*'44mm'/);
 
   // 2. Consistent Rounded Corners across UI elements
   assert.match(idCardTsx, /borderRadius:\s*'4\.5mm'/); // Main card border

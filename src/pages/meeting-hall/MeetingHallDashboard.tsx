@@ -55,6 +55,7 @@ export const MeetingHallDashboard: React.FC = () => {
   const [rooms, setRooms] = useState<MeetingRoom[]>([]);
   const [movements, setMovements] = useState<MeetingAttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'auto' | 'cards' | 'table'>('auto');
 
   // Filters for Seating
@@ -88,6 +89,7 @@ export const MeetingHallDashboard: React.FC = () => {
 
   const loadData = useCallback(async () => {
     try {
+      setError(null);
       const [halls, invs, roomList, movementList] = await Promise.all([
         getMeetingHallRecords(),
         getInvitees(),
@@ -98,8 +100,9 @@ export const MeetingHallDashboard: React.FC = () => {
       setInvitees(invs);
       setRooms(roomList);
       setMovements(movementList);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error loading meeting hall data:', err);
+      setError(err?.message || 'Failed to load meeting hall records from Supabase.');
     } finally {
       setIsLoading(false);
     }
@@ -350,6 +353,27 @@ export const MeetingHallDashboard: React.FC = () => {
           </div>
         }
       />
+
+      {/* Database Error Banner */}
+      {error && (
+        <div
+          role="alert"
+          className="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in shadow-xs"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertCircle className="h-5 w-5 shrink-0 text-red-600" />
+            <span className="font-medium truncate">{error}</span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="self-start sm:self-center shrink-0 border-red-300 text-red-700 hover:bg-red-100 h-8"
+            onClick={() => loadData()}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
 
       {/* Primary Tab Switcher */}
       <div className="flex items-center gap-1.5 border-b border-[#E3E7E4] pb-2 text-xs font-semibold overflow-x-auto scrollbar-none -mx-3.5 px-3.5 sm:mx-0 sm:px-0">

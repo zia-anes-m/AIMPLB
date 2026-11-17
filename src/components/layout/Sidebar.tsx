@@ -42,7 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const handleLogout = async () => {
     await logout();
-    navigate('/');
+    navigate('/', { replace: true });
   };
 
   const getItemClass = (isActive: boolean) =>

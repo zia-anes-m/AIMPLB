@@ -181,33 +181,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return { success: true, user: userProfile };
         }
 
-        // 2. Primary: Username authentication via admin-users Edge Function
-        try {
-          const { data: edgeData, error: edgeError } = await supabase.functions.invoke('admin-users', {
-            body: {
-              action: 'login',
-              username: identifier,
-              password,
-            },
-          });
-
-          if (!edgeError && edgeData?.session && edgeData?.profile) {
-            await supabase.auth.setSession({
-              access_token: edgeData.session.access_token,
-              refresh_token: edgeData.session.refresh_token,
-            });
-
-            const userProfile = edgeData.profile as UserProfile;
-            setCurrentUser(userProfile);
-            safeStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(userProfile));
-            setIsLoading(false);
-            return { success: true, user: userProfile };
-          }
-        } catch (edgeErr) {
-          console.warn('[Auth] Edge Function login invocation error:', edgeErr);
-        }
-
-        // 3. Resilient Fallback: Resolve username via secure PostgreSQL RPC & direct Supabase Auth
+        // 2. Primary: Fast direct username resolution via PostgreSQL RPC & native client sign-in
         try {
           const { data: resolvedEmail, error: rpcErr } = await supabase.rpc('resolve_username_to_auth_email', {
             p_username: identifier,
@@ -247,8 +221,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setIsLoading(false);
             return { success: true, user: userProfile };
           }
-        } catch (rpcFallbackErr) {
-          console.warn('[Auth] RPC username fallback error:', rpcFallbackErr);
+        } catch (rpcErr) {
+          console.warn('[Auth] Primary username RPC resolution notice:', rpcErr);
+        }
+
+        // 3. Resilient Secondary: Username authentication via admin-users Edge Function
+        try {
+          const { data: edgeData, error: edgeError } = await supabase.functions.invoke('admin-users', {
+            body: {
+              action: 'login',
+              username: identifier,
+              password,
+            },
+          });
+
+          if (!edgeError && edgeData?.session && edgeData?.profile) {
+            const { error: setSessionErr } = await supabase.auth.setSession({
+              access_token: edgeData.session.access_token,
+              refresh_token: edgeData.session.refresh_token,
+            });
+
+            if (setSessionErr) {
+              console.warn('[Auth] setSession warning from Edge Function login:', setSessionErr);
+            }
+
+            const userProfile = edgeData.profile as UserProfile;
+            setCurrentUser(userProfile);
+            safeStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(userProfile));
+            setIsLoading(false);
+            return { success: true, user: userProfile };
+          }
+        } catch (edgeErr) {
+          console.warn('[Auth] Edge Function login invocation notice:', edgeErr);
         }
 
         setIsLoading(false);

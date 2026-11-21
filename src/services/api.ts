@@ -20,6 +20,7 @@ import {
 
 let dbUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
 export function notifyDbUpdate(): void {
+  clearInviteeLookupCache();
   if (typeof window === 'undefined') return;
   if (dbUpdateTimeout) clearTimeout(dbUpdateTimeout);
   dbUpdateTimeout = setTimeout(() => {
@@ -155,26 +156,64 @@ export async function getInviteeById(id: string): Promise<Invitee | null> {
   return role === 'Admin' ? (data as Invitee) : redactInviteeForNonAdmin(data as Invitee);
 }
 
+// -------------------------------------------------------------
+// CACHED INVITEES LOOKUP MAP (SWR + In-flight deduplication)
+// Eliminates 7x redundant queries across concurrent dashboard modules
+// -------------------------------------------------------------
+let cachedInviteeMap: Map<string, Invitee> | null = null;
+let cachedInviteeMapTime = 0;
+let inflightInviteeMapPromise: Promise<Map<string, Invitee>> | null = null;
+const INV_LOOKUP_CACHE_TTL_MS = 20_000; // 20 seconds TTL
+
+export function clearInviteeLookupCache(): void {
+  cachedInviteeMap = null;
+  cachedInviteeMapTime = 0;
+  inflightInviteeMapPromise = null;
+}
+
 /**
  * Lightweight invitee lookup map designed for sub-module relational joins (transport, food, gate, etc.).
- * Selects essential columns to eliminate bandwidth overhead during high-concurrency event operations.
+ * Uses in-memory SWR caching (20s TTL) and deduplicates simultaneous requests in flight.
  */
 export async function getInviteeLookupMap(): Promise<Map<string, Invitee>> {
   if (!isSupabaseConfigured) {
     throw new Error('Supabase is not configured.');
   }
 
-  const { data, error } = await supabase
-    .from('invitees')
-    .select('id, invitee_code, full_name, category, phone, alternate_phone, address, city, state, country, remarks, id_card_remarks, qr_token, created_by, created_at, updated_at');
-
-  if (error) {
-    console.warn('[InviteeService] Failed to load invitee lookup map, falling back to full list:', error);
-    const full = await getInvitees();
-    return new Map(full.map((i) => [i.id, i]));
+  const now = Date.now();
+  if (cachedInviteeMap && now - cachedInviteeMapTime < INV_LOOKUP_CACHE_TTL_MS) {
+    return cachedInviteeMap;
   }
 
-  return new Map(((data || []) as Invitee[]).map((i) => [i.id, i]));
+  if (inflightInviteeMapPromise) {
+    return inflightInviteeMapPromise;
+  }
+
+  inflightInviteeMapPromise = (async () => {
+    try {
+      const { data, error } = await supabase
+        .from('invitees')
+        .select('id, invitee_code, full_name, category, phone, alternate_phone, address, city, state, country, remarks, id_card_remarks, qr_token, created_by, created_at, updated_at');
+
+      if (error) {
+        console.warn('[InviteeService] Failed to load invitee lookup map, falling back to full list:', error);
+        const full = await getInvitees();
+        const map = new Map(full.map((i) => [i.id, i]));
+        cachedInviteeMap = map;
+        cachedInviteeMapTime = Date.now();
+        return map;
+      }
+
+      const map = new Map(((data || []) as Invitee[]).map((i) => [i.id, i]));
+      cachedInviteeMap = map;
+      cachedInviteeMapTime = Date.now();
+      return map;
+    } finally {
+      inflightInviteeMapPromise = null;
+    }
+  })();
+
+  return inflightInviteeMapPromise;
 }
 
 export async function getInviteeByQrToken(token: string): Promise<Invitee | null> {
@@ -225,6 +264,24 @@ export async function getInviteeByCode(code: string): Promise<Invitee | null> {
   return role === 'Admin' ? (data as Invitee) : redactInviteeForNonAdmin(data as Invitee);
 }
 
+// -------------------------------------------------------------
+// PHONE VALIDATION & DUPLICATE PREVENTION HELPERS
+// -------------------------------------------------------------
+export function extract10DigitPhone(phoneStr: string | null | undefined): string | null {
+  if (!phoneStr) return null;
+  const digits = phoneStr.replace(/\D/g, '');
+  if (digits.length === 10) return digits;
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+  if (digits.length > 10) return digits.slice(-10);
+  return null;
+}
+
+export function isValid10DigitPhone(phoneStr: string | null | undefined): boolean {
+  if (!phoneStr) return false;
+  const digits = phoneStr.replace(/\D/g, '');
+  return digits.length === 10 || (digits.length === 12 && digits.startsWith('91'));
+}
+
 export async function checkDuplicateInvitee(
   phone: string,
   fullName: string,
@@ -232,7 +289,7 @@ export async function checkDuplicateInvitee(
 ): Promise<{ isDuplicate: boolean; matchedBy: 'phone' | 'name' | null; existing?: Invitee }> {
   if (!isSupabaseConfigured) return { isDuplicate: false, matchedBy: null };
 
-  const cleanPhone = phone.replace(/\D/g, '');
+  const cleanPhone = extract10DigitPhone(phone);
   const cleanName = fullName.trim().toLowerCase();
 
   let query = supabase.from('invitees').select('*');
@@ -244,11 +301,13 @@ export async function checkDuplicateInvitee(
   if (error || !data) return { isDuplicate: false, matchedBy: null };
 
   for (const inv of data as Invitee[]) {
-    const existingCleanPhone = (inv.phone || '').replace(/\D/g, '');
+    // 1. Strict duplicate phone check (matching 10 digits)
+    const existingCleanPhone = extract10DigitPhone(inv.phone);
     if (cleanPhone && existingCleanPhone && cleanPhone === existingCleanPhone) {
       return { isDuplicate: true, matchedBy: 'phone', existing: inv };
     }
 
+    // 2. Strict duplicate name check (case-insensitive & trimmed)
     if (cleanName && (inv.full_name || '').trim().toLowerCase() === cleanName) {
       return { isDuplicate: true, matchedBy: 'name', existing: inv };
     }
@@ -263,6 +322,29 @@ export async function createInvitee(
 ): Promise<Invitee> {
   if (!isSupabaseConfigured) {
     throw new Error('Supabase is not configured. Cannot create invitee.');
+  }
+
+  // 1. Phone number must contain exactly 10 digits
+  if (!isValid10DigitPhone(data.phone)) {
+    throw new Error('Primary phone number must contain exactly 10 digits (e.g. 9840123456).');
+  }
+  if (data.alternate_phone && data.alternate_phone.trim() && !isValid10DigitPhone(data.alternate_phone)) {
+    throw new Error('Alternate phone number must contain exactly 10 digits.');
+  }
+
+  // 2. Uniqueness verification: No two invitees can have the same phone number or same name
+  const duplicateCheck = await checkDuplicateInvitee(data.phone, data.full_name);
+  if (duplicateCheck.isDuplicate) {
+    if (duplicateCheck.matchedBy === 'phone') {
+      throw new Error(
+        `Duplicate Phone Blocked: An invitee with phone number "${data.phone}" already exists (${duplicateCheck.existing?.full_name} - ${duplicateCheck.existing?.invitee_code}).`
+      );
+    }
+    if (duplicateCheck.matchedBy === 'name') {
+      throw new Error(
+        `Duplicate Name Blocked: An invitee with the name "${data.full_name.trim()}" already exists (${duplicateCheck.existing?.invitee_code}). Duplicate names are not permitted.`
+      );
+    }
   }
 
   const prefix = getCategoryPrefix(data.category);
@@ -307,6 +389,9 @@ export async function createInvitee(
 
   if (error || !inserted) {
     console.error('[InviteeService] Supabase INSERT failed:', error);
+    if (error?.code === '23505') {
+      throw new Error('Duplicate Entry Blocked: An invitee with this phone number or name already exists in the database.');
+    }
     throw new Error(`Failed to create invitee in Supabase: ${error?.message || 'Database error'} (${error?.code || 'ERR'})`);
   }
 
@@ -322,6 +407,35 @@ export async function updateInvitee(
 ): Promise<Invitee> {
   if (!isSupabaseConfigured) {
     throw new Error('Supabase is not configured. Cannot update invitee.');
+  }
+
+  // 1. Phone number validation if updating phone
+  if (data.phone && !isValid10DigitPhone(data.phone)) {
+    throw new Error('Primary phone number must contain exactly 10 digits (e.g. 9840123456).');
+  }
+  if (data.alternate_phone && data.alternate_phone.trim() && !isValid10DigitPhone(data.alternate_phone)) {
+    throw new Error('Alternate phone number must contain exactly 10 digits.');
+  }
+
+  // 2. Uniqueness verification if updating phone or name
+  if (data.phone || data.full_name) {
+    const existingInvitee = await getInviteeById(id);
+    const phoneToCheck = data.phone || existingInvitee?.phone || '';
+    const nameToCheck = data.full_name || existingInvitee?.full_name || '';
+
+    const duplicateCheck = await checkDuplicateInvitee(phoneToCheck, nameToCheck, id);
+    if (duplicateCheck.isDuplicate) {
+      if (duplicateCheck.matchedBy === 'phone') {
+        throw new Error(
+          `Duplicate Phone Blocked: Another invitee with phone number "${phoneToCheck}" already exists (${duplicateCheck.existing?.full_name} - ${duplicateCheck.existing?.invitee_code}).`
+        );
+      }
+      if (duplicateCheck.matchedBy === 'name') {
+        throw new Error(
+          `Duplicate Name Blocked: Another invitee with the name "${nameToCheck.trim()}" already exists (${duplicateCheck.existing?.invitee_code}). Duplicate names are not permitted.`
+        );
+      }
+    }
   }
 
   const {
@@ -517,18 +631,28 @@ export async function checkRoomConflict(
     return { hasConflict: false };
   }
 
-  const list = await getAccommodations();
+  if (!isSupabaseConfigured) {
+    return { hasConflict: false };
+  }
+
+  // Optimized targeted query: only inspect records for the exact hotel and room
+  const { data, error } = await supabase
+    .from('accommodations')
+    .select('*')
+    .ilike('hotel_name', hotelName.trim())
+    .ilike('room_number', roomNumber.trim());
+
+  if (error || !data) {
+    console.warn('[AccommodationService] Direct room conflict lookup error:', error);
+    return { hasConflict: false };
+  }
+
   const inDate = new Date(checkInDate).getTime();
   const outDate = new Date(checkOutDate).getTime();
 
-  for (const acc of list) {
+  for (const acc of (data as AccommodationRecord[])) {
     if (excludeRecordId && acc.id === excludeRecordId) continue;
-    if (
-      acc.hotel_name?.toLowerCase().trim() === hotelName.toLowerCase().trim() &&
-      acc.room_number?.toLowerCase().trim() === roomNumber.toLowerCase().trim() &&
-      acc.check_in_date &&
-      acc.check_out_date
-    ) {
+    if (acc.check_in_date && acc.check_out_date) {
       const existingIn = new Date(acc.check_in_date).getTime();
       const existingOut = new Date(acc.check_out_date).getTime();
 
@@ -1061,34 +1185,39 @@ export async function getProfiles(): Promise<UserProfile[]> {
 
 /**
  * Ensures an active, verified, unexpired session token is available for privileged Edge Function calls.
- * Automatically refreshes the session if token is missing, expired, or within 60s of expiration.
+ * Gracefully uses existing valid session access token without premature rejection.
  */
 export async function getFreshAdminAccessToken(): Promise<string> {
   if (!isSupabaseConfigured) {
     throw new Error('Supabase is not configured.');
   }
 
-  let { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   const nowSeconds = Math.floor(Date.now() / 1000);
-  const isExpiringSoon = !session?.expires_at || (session.expires_at - nowSeconds < 60);
 
-  if (sessionError || !session || isExpiringSoon) {
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-    if (refreshError || !refreshData?.session) {
-      if (session?.access_token && session.expires_at && session.expires_at > nowSeconds) {
-        return session.access_token;
-      }
-      throw new Error('Invalid or expired authentication session. Please sign in again.');
+  // If session is present and valid for more than 15 seconds, return immediately
+  if (!sessionError && session?.access_token) {
+    if (!session.expires_at || session.expires_at - nowSeconds > 15) {
+      return session.access_token;
     }
-    session = refreshData.session;
   }
 
-  if (!session?.access_token) {
-    throw new Error('Authentication session token is missing. Please sign in again.');
+  // Attempt refresh if missing, expired, or expiring within 15 seconds
+  try {
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    if (!refreshError && refreshData?.session?.access_token) {
+      return refreshData.session.access_token;
+    }
+  } catch (refreshErr) {
+    console.warn('[VolunteerService] Session refresh attempt error:', refreshErr);
   }
 
-  return session.access_token;
+  // Resilient fallback: If refresh failed but session access token still has validity
+  if (session?.access_token && (!session.expires_at || session.expires_at > nowSeconds)) {
+    return session.access_token;
+  }
+
+  throw new Error('Invalid or expired authentication session. Please sign in again.');
 }
 
 export async function createVolunteer(

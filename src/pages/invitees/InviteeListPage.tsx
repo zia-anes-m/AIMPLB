@@ -23,6 +23,7 @@ import { SearchInput } from '@/components/common/SearchInput';
 import { EmptyState } from '@/components/common/EmptyState';
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
 import { ConfirmModal } from '@/components/common/ConfirmModal';
+import { Pagination } from '@/components/common/Pagination';
 import { InviteeFormModal } from './InviteeFormModal';
 import { Invitee, InviteeCategory } from '@/types';
 import { getInvitees, deleteInvitee } from '@/services/api';
@@ -40,14 +41,32 @@ export const InviteeListPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'auto' | 'cards' | 'table'>('auto');
+
+  // Pagination states (mobile optimized)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // Modal states
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [inviteeToEdit, setInviteeToEdit] = useState<Invitee | null>(null);
   const [inviteeToDelete, setInviteeToDelete] = useState<Invitee | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Debounce search by 250ms for smooth 60fps Android typing on 700+ records
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset to first page when filtering or searching
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, categoryFilter]);
 
   // Stable data loader that runs on mount and refreshes silently on changes
   // Never sets isLoading back to true on background refetch, preventing flickering
@@ -77,7 +96,7 @@ export const InviteeListPage: React.FC = () => {
 
   const filteredInvitees = useMemo(() => {
     return invitees.filter((inv) => {
-      const q = searchQuery.toLowerCase().trim();
+      const q = debouncedSearch.toLowerCase().trim();
       const matchesSearch =
         !q ||
         inv.full_name.toLowerCase().includes(q) ||
@@ -90,7 +109,14 @@ export const InviteeListPage: React.FC = () => {
 
       return matchesSearch && matchesCat;
     });
-  }, [invitees, searchQuery, categoryFilter]);
+  }, [invitees, debouncedSearch, categoryFilter]);
+
+  // Slice paginated items for DOM performance
+  const totalPages = Math.ceil(filteredInvitees.length / pageSize) || 1;
+  const paginatedInvitees = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredInvitees.slice(start, start + pageSize);
+  }, [filteredInvitees, currentPage, pageSize]);
 
   const handleDelete = async () => {
     if (!inviteeToDelete || !currentUser) return;
@@ -341,7 +367,7 @@ export const InviteeListPage: React.FC = () => {
                 : 'block md:hidden'
             }`}
           >
-            {filteredInvitees.map((inv) => (
+            {paginatedInvitees.map((inv) => (
               <MobileDataCard
                 key={inv.id}
                 title={inv.full_name}
@@ -444,7 +470,7 @@ export const InviteeListPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F4F6F4]">
-                  {filteredInvitees.map((inv) => (
+                  {paginatedInvitees.map((inv) => (
                     <tr
                       key={inv.id}
                       className="hover:bg-[#FAF9F6]/80 transition-colors cursor-pointer group"
@@ -521,6 +547,20 @@ export const InviteeListPage: React.FC = () => {
               </table>
             </div>
           </div>
+
+          {/* Touch-Friendly Mobile & Desktop Pagination Controls */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredInvitees.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+            itemLabel="invitees"
+          />
         </>
       )}
 

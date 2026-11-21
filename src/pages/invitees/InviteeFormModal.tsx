@@ -6,16 +6,32 @@ import { Dialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Invitee, InviteeCategory } from '@/types';
-import { createInvitee, updateInvitee, checkDuplicateInvitee } from '@/services/api';
+import { createInvitee, updateInvitee, checkDuplicateInvitee, isValid10DigitPhone } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
-import { AlertCircle, AlertTriangle } from 'lucide-react';
+import { AlertCircle, ShieldAlert } from 'lucide-react';
 
 const inviteeSchema = z.object({
-  full_name: z.string().min(2, 'Full name must be at least 2 characters'),
+  full_name: z
+    .string()
+    .min(2, 'Full name must be at least 2 characters')
+    .refine((val) => val.trim().length >= 2, 'Full name cannot be blank spaces'),
   category: z.enum(['Founder Members', 'General Members', 'Special Invitees']),
-  phone: z.string().min(8, 'Valid phone number is required'),
-  alternate_phone: z.string().optional().nullable(),
+  phone: z
+    .string()
+    .min(1, 'Primary phone number is required')
+    .refine(
+      (val) => isValid10DigitPhone(val),
+      'Phone number must contain exactly 10 digits (e.g. 9840123456 or +91 9840123456)'
+    ),
+  alternate_phone: z
+    .string()
+    .optional()
+    .nullable()
+    .refine(
+      (val) => !val || !val.trim() || isValid10DigitPhone(val),
+      'Alternate phone must contain exactly 10 digits if provided'
+    ),
   address: z.string().optional().nullable(),
   city: z.string().min(2, 'City is required'),
   state: z.string().min(2, 'State is required'),
@@ -101,27 +117,25 @@ export const InviteeFormModal: React.FC<InviteeFormModalProps> = ({
     setGeneralError(null);
   }, [inviteeToEdit, isOpen, reset]);
 
-  const processSave = async (data: FormData, force = false) => {
+  const processSave = async (data: FormData) => {
     if (!currentUser) return;
     setIsSubmitting(true);
     setGeneralError(null);
 
     try {
-      // Duplicate check if creating or changing phone/name
-      if (!force) {
-        const check = await checkDuplicateInvitee(
-          data.phone,
-          data.full_name,
-          inviteeToEdit?.id
-        );
-        if (check.isDuplicate) {
-          setDuplicateWarning({
-            matchedBy: check.matchedBy,
-            existing: check.existing,
-          });
-          setIsSubmitting(false);
-          return;
-        }
+      // Strict duplicate prevention: No two invitees can have the same phone number or name
+      const check = await checkDuplicateInvitee(
+        data.phone,
+        data.full_name,
+        inviteeToEdit?.id
+      );
+      if (check.isDuplicate) {
+        setDuplicateWarning({
+          matchedBy: check.matchedBy,
+          existing: check.existing,
+        });
+        setIsSubmitting(false);
+        return;
       }
 
       let saved: Invitee;
@@ -157,7 +171,7 @@ export const InviteeFormModal: React.FC<InviteeFormModalProps> = ({
   };
 
   const onSubmit = (data: FormData) => {
-    processSave(data, false);
+    processSave(data);
   };
 
   return (
@@ -176,41 +190,34 @@ export const InviteeFormModal: React.FC<InviteeFormModalProps> = ({
       )}
 
       {duplicateWarning && (
-        <div className="mb-4 p-4 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 space-y-2.5">
-          <div className="flex items-start gap-2 font-semibold">
-            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-            <span>Possible Duplicate Invitee Detected!</span>
+        <div className="mb-4 p-4 bg-red-50 border border-red-300 rounded-xl text-xs text-red-900 space-y-2.5">
+          <div className="flex items-start gap-2 font-bold text-red-700">
+            <ShieldAlert className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+            <span>
+              Duplicate Entry Blocked: Same {duplicateWarning.matchedBy === 'phone' ? 'Phone Number' : 'Name'} Already Registered
+            </span>
           </div>
-          <p>
-            An existing record already matches by{' '}
-            <strong className="underline">{duplicateWarning.matchedBy}</strong>:
+          <p className="text-red-800">
+            To prevent duplicate entries and maintain database integrity, no two invitees can have the same{' '}
+            <strong className="underline">{duplicateWarning.matchedBy === 'phone' ? 'phone number' : 'name'}</strong>. An existing invitee already matches:
           </p>
-          <div className="p-2.5 bg-white rounded-lg border border-amber-200 text-[11px]">
-            <p className="font-semibold text-[#1A221E]">
+          <div className="p-2.5 bg-white rounded-lg border border-red-200 text-[11px]">
+            <p className="font-bold text-[#1A221E]">
               {duplicateWarning.existing?.full_name} ({duplicateWarning.existing?.invitee_code})
             </p>
             <p className="text-[#69756F] mt-0.5">
-              Phone: {duplicateWarning.existing?.phone} • Category: {duplicateWarning.existing?.category}
+              Phone: {duplicateWarning.existing?.phone} • Category: {duplicateWarning.existing?.category} • City: {duplicateWarning.existing?.city}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 pt-1">
+          <div className="pt-1">
             <Button
               type="button"
               size="sm"
               variant="outline"
               onClick={() => setDuplicateWarning(null)}
-              className="h-8 text-xs bg-white"
+              className="h-8 text-xs bg-white text-red-800 border-red-300 hover:bg-red-100"
             >
-              Review Information
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={handleSubmit((data) => processSave(data, true))}
-              className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white"
-            >
-              Confirm and Save Anyway
+              Review Details & Modify
             </Button>
           </div>
         </div>
@@ -248,8 +255,9 @@ export const InviteeFormModal: React.FC<InviteeFormModalProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             id="phone"
-            label="Primary Phone Number"
-            placeholder="+91 98400 00000"
+            label="Primary Phone Number (10 digits)"
+            placeholder="e.g. 9840123456"
+            helperText="Must contain exactly 10 digits"
             required
             error={errors.phone?.message}
             {...register('phone')}
@@ -258,7 +266,8 @@ export const InviteeFormModal: React.FC<InviteeFormModalProps> = ({
           <Input
             id="alternate_phone"
             label="Alternate Phone (Optional)"
-            placeholder="+91 94400 00000"
+            placeholder="e.g. 9440123456"
+            helperText="Must contain exactly 10 digits if provided"
             error={errors.alternate_phone?.message}
             {...register('alternate_phone')}
           />

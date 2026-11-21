@@ -488,4 +488,29 @@ test('22. QR Scanner Camera Robustness: HTTPS Check, Error Classification, Rear 
   assert.match(scannerTsx, /handleManualSubmit/);
 });
 
+test('23. Invitee 10-Digit Phone Validation & Strict Duplicate Prevention (Phone & Name)', () => {
+  const formModalTsx = fs.readFileSync(path.join(ROOT_DIR, 'src', 'pages', 'invitees', 'InviteeFormModal.tsx'), 'utf-8');
+  const apiTs = fs.readFileSync(path.join(ROOT_DIR, 'src', 'services', 'api.ts'), 'utf-8');
+  const migration008 = fs.readFileSync(path.join(ROOT_DIR, 'supabase', 'migrations', '008_invitee_unique_name_and_10digit_phone.sql'), 'utf-8');
+
+  // 1. Frontend validation requires 10 digits
+  assert.match(formModalTsx, /isValid10DigitPhone/);
+  assert.match(formModalTsx, /exactly 10 digits/);
+
+  // 2. Frontend blocks duplicate phone and name without bypass
+  assert.match(formModalTsx, /Duplicate Entry Blocked/);
+  assert.doesNotMatch(formModalTsx, /Confirm and Save Anyway/);
+
+  // 3. Service layer validation & uniqueness checks
+  assert.match(apiTs, /extract10DigitPhone/);
+  assert.match(apiTs, /isValid10DigitPhone/);
+  assert.match(apiTs, /Duplicate Phone Blocked/);
+  assert.match(apiTs, /Duplicate Name Blocked/);
+
+  // 4. Database schema migration 008 constraints & unique indexes
+  assert.match(migration008, /uq_invitees_lower_trimmed_name/);
+  assert.match(migration008, /uq_invitees_normalized_10digit_phone/);
+  assert.match(migration008, /chk_invitees_phone_10digits/);
+});
+
 

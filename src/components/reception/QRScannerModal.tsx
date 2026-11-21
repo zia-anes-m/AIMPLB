@@ -50,7 +50,19 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   onScanComplete,
 }) => {
   const { currentUser } = useAuth();
-  const [scanMode, setScanMode] = useState<'IN' | 'OUT'>(initialMode);
+  const scanModeRef = useRef<'IN' | 'OUT'>(initialMode);
+  const [scanMode, setScanModeState] = useState<'IN' | 'OUT'>(initialMode);
+
+  const setScanMode = useCallback((mode: 'IN' | 'OUT') => {
+    scanModeRef.current = mode;
+    setScanModeState(mode);
+  }, []);
+
+  // Synchronously ensure ref always matches the active mode
+  if (isOpen && scanModeRef.current !== scanMode) {
+    scanModeRef.current = scanMode;
+  }
+
   const [activeTab, setActiveTab] = useState<'camera' | 'manual'>('camera');
   const [isScanning, setIsScanning] = useState(false);
   const [cameraError, setCameraError] = useState<CameraErrorInfo | null>(null);
@@ -74,10 +86,11 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   const lastScannedCodeRef = useRef<string>('');
   const lastScannedTimeRef = useRef<number>(0);
 
-  // Sync mode when modal opens
+  // Sync mode when modal opens or initialMode changes
   useEffect(() => {
     if (isOpen) {
-      setScanMode(initialMode);
+      scanModeRef.current = initialMode;
+      setScanModeState(initialMode);
       setLastScanResult(null);
       setCameraError(null);
       isHandlingScanRef.current = false;
@@ -168,6 +181,9 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
       if (!currentUser || isProcessing) return;
       setIsProcessing(true);
 
+      // Always read the live mode directly from ref to prevent stale closure bugs
+      const effectiveMode = scanModeRef.current;
+
       try {
         // 1. Identify Invitee by token or category code
         let invitee = await getInviteeByQrToken(tokenOrCode);
@@ -191,9 +207,9 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           throw new Error(`Unrecognized QR Code / Token: "${tokenOrCode.slice(0, 25)}". Delegate record not found in system.`);
         }
 
-        // 2. Perform either SCAN IN or SCAN OUT
+        // 2. Perform either SCAN IN or SCAN OUT based on verified effectiveMode
         let record: EventAttendanceRecord;
-        if (scanMode === 'IN') {
+        if (effectiveMode === 'IN') {
           record = await recordEventEntry(invitee.id, currentUser, undefined, undefined, inputMethod);
         } else {
           record = await recordEventExit(invitee.id, currentUser, undefined, inputMethod);
@@ -202,17 +218,17 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         playBeep('success');
         const result = {
           success: true,
-          mode: scanMode,
+          mode: effectiveMode,
           invitee,
           record,
           message:
-            scanMode === 'IN'
+            effectiveMode === 'IN'
               ? `Check-in Verified: ${invitee.full_name} (${invitee.invitee_code}) is now INSIDE the venue.`
               : `Exit Confirmed: ${invitee.full_name} (${invitee.invitee_code}) is now OUT.`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         };
         setLastScanResult(result);
-        onScanComplete?.(invitee, record, scanMode);
+        onScanComplete?.(invitee, record, effectiveMode);
 
         // Immediately stop camera tracks and close scanner modal on success
         await stopCamera();
@@ -221,7 +237,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         playBeep('error');
         setLastScanResult({
           success: false,
-          mode: scanMode,
+          mode: effectiveMode,
           message: err.message || 'Operation failed. Please try again.',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         });
@@ -230,7 +246,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         setIsProcessing(false);
       }
     },
-    [currentUser, isProcessing, scanMode, playBeep, onScanComplete, stopCamera, onClose]
+    [currentUser, isProcessing, playBeep, onScanComplete, stopCamera, onClose]
   );
 
   const parseAndSetCameraError = useCallback((err: any) => {

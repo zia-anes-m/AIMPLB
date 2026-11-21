@@ -26,6 +26,7 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { SearchInput } from '@/components/common/SearchInput';
 import { EmptyState } from '@/components/common/EmptyState';
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
+import { Pagination } from '@/components/common/Pagination';
 import { QRScannerModal } from '@/components/reception/QRScannerModal';
 import { AttendanceCorrectionModal } from '@/components/reception/AttendanceCorrectionModal';
 import { Invitee, EventAttendanceRecord } from '@/types';
@@ -64,10 +65,28 @@ export const ReceptionDashboard: React.FC = () => {
   const [correctionRecord, setCorrectionRecord] = useState<EventAttendanceRecord | null>(null);
   const [isCorrectionOpen, setIsCorrectionOpen] = useState(false);
 
-  // Filters
+  // Filters & Search
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'inside' | 'outside'>('all');
   const [selectedDate, setSelectedDate] = useState<string>('2026-12-14');
+
+  // Pagination states for smooth Android mobile scrolling
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  // Debounce search input by 250ms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset pagination on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, selectedDate]);
 
   const loadData = useCallback(async () => {
     try {
@@ -157,10 +176,10 @@ export const ReceptionDashboard: React.FC = () => {
     }
   };
 
-  // Filtered invitees based on search and inside/outside presence
+  // Filtered invitees based on debounced search and inside/outside presence
   const filteredInvitees = useMemo(() => {
     return invitees.filter((inv) => {
-      const q = searchQuery.toLowerCase().trim();
+      const q = debouncedSearch.toLowerCase().trim();
       const matchesSearch =
         !q ||
         inv.full_name.toLowerCase().includes(q) ||
@@ -175,7 +194,14 @@ export const ReceptionDashboard: React.FC = () => {
 
       return matchesSearch && matchesStatus;
     });
-  }, [invitees, activeSessionMap, searchQuery, statusFilter]);
+  }, [invitees, activeSessionMap, debouncedSearch, statusFilter]);
+
+  // Paginated subset of invitees
+  const totalPages = Math.ceil(filteredInvitees.length / pageSize) || 1;
+  const paginatedInvitees = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredInvitees.slice(start, start + pageSize);
+  }, [filteredInvitees, currentPage, pageSize]);
 
   const handleExportCSV = () => {
     if (attendanceRecords.length === 0) {
@@ -614,7 +640,7 @@ export const ReceptionDashboard: React.FC = () => {
               viewMode === 'table' ? 'hidden' : viewMode === 'cards' ? 'block' : 'block md:hidden'
             }`}
           >
-            {filteredInvitees.map((inv) => {
+            {paginatedInvitees.map((inv) => {
               const activeSession = activeSessionMap.get(inv.id);
               const isInside = Boolean(activeSession);
               return (
@@ -720,7 +746,7 @@ export const ReceptionDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F4F6F4]">
-                  {filteredInvitees.map((inv) => {
+                  {paginatedInvitees.map((inv) => {
                     const activeSession = activeSessionMap.get(inv.id);
                     const isInside = Boolean(activeSession);
                     return (
@@ -841,24 +867,41 @@ export const ReceptionDashboard: React.FC = () => {
               </table>
             </div>
           </div>
+
+          {/* Touch-Friendly Mobile & Desktop Pagination Controls */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredInvitees.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+            itemLabel="delegates"
+          />
         </>
       )}
 
       {/* QR Scanner Modal (Dual-Mode: IN / OUT with camera & manual fallback) */}
-      <QRScannerModal
-        isOpen={isScannerOpen}
-        onClose={() => setIsScannerOpen(false)}
-        initialMode={scannerMode}
-        onScanComplete={(invitee, record, mode) => {
-          setLastScannedResult({
-            invitee,
-            record,
-            mode,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          });
-          loadData();
-        }}
-      />
+      {isScannerOpen && (
+        <QRScannerModal
+          key={`qr-scanner-modal-${scannerMode}`}
+          isOpen={isScannerOpen}
+          onClose={() => setIsScannerOpen(false)}
+          initialMode={scannerMode}
+          onScanComplete={(invitee, record, mode) => {
+            setLastScannedResult({
+              invitee,
+              record,
+              mode,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            });
+            loadData();
+          }}
+        />
+      )}
 
       {/* Attendance Audit & Correction Modal */}
       <AttendanceCorrectionModal
